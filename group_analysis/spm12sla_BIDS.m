@@ -92,8 +92,8 @@ if ~isfolder(derived_dir)
 end
 
 %% Define what to do
-do.SpecifyDesign      = 0;
-do.estimate           = 0;
+do.SpecifyDesign      = 1;
+do.estimate           = 1;
 do.DefContrasts       = 1;
 
 %% Settings
@@ -103,11 +103,11 @@ settings.matprefix = input (['Please specify the prefix of your participant data
 % specify format for folder numeration
 formatSpec = '%04i';
 
-folders = dir(fullfile(derived_dir,[settings.matprefix, '*']));
+folders = dir(fullfile(derived_dir,'spm12flaWholeVideo',[settings.matprefix, '*']));
 subNames = {folders(:).name}; 
 
 % load in one SPM.mat file to read out the contrasts
-load(fullfile(derived_dir,subNames{1}, 'MRI/analysis/first_level_analysis/WholeVideo/SPM.mat'));
+load(fullfile(derived_dir,'spm12flaWholeVideo',subNames{1},'SPM.mat'));
 nContrasts = length(SPM.xCon);
 % Iterate over all contrasts
 for C = 1:nContrasts 
@@ -118,7 +118,7 @@ for C = 1:nContrasts
 
         for s = 1:length(subNames)
 
-            current_dir = fullfile(derived_dir,subNames{s},'MRI/analysis/first_level_analysis/WholeVideo');
+            current_dir = fullfile(derived_dir,'spm12flaWholeVideo',subNames{s});
             contrasts_dirs{end+1} = fullfile(current_dir,['con_' num2str(C,formatSpec) '.nii']);
 
         end
@@ -146,7 +146,7 @@ for C = 1:nContrasts
 
         for s = 1:length(subNames)
 
-            current_dir = fullfile(derived_dir,subNames{s},'MRI/analysis/first_level_analysis/SpecialMoment');
+            current_dir = fullfile(derived_dir,'spm12flaSpecialMoment',subNames{s});
             contrasts_dirs{end+1} = fullfile(current_dir,['con_' num2str(C,formatSpec) '.nii']);
 
         end

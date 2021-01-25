@@ -106,13 +106,14 @@ do.estimate           = 1;
 %% Settings
 settings.matprefix = input (['Please specify the prefix of your participant data.\n' ...
     '(like p for participant or s for subject. It has to be unique so that only subject folders are selected):\n'],'s');
-settings.preprocessing = ['^uf' '.*nii']; % ['^s2au' '.*nii']: realigned, slice time corrected, 6mm-smoothed data
+settings.preprocessing = ['^auf' '.*nii']; % ['^s2au' '.*nii']: realigned, slice time corrected, 6mm-smoothed data
 settings.num_presentations_per_video = 2;
 
-folders = dir(fullfile(derived_dir,[settings.matprefix, '*']));
+data_dir = fullfile(derived_dir,'slice_time_corrected');
+folders = dir(fullfile(data_dir,[settings.matprefix, '*']));
 subNames = {folders(:).name}; 
 % create a "first_level_analysis" folder
-spm_mkdir(fullfile(derived_dir), subNames, 'MRI/analysis/glm/TrickVersionMagicMoment');
+spm_mkdir(fullfile(derived_dir), 'spm12flaModelTrickVersionMagicMoment', subNames);
 
 fla.realignmentParameters_flag  = 1;
 
@@ -127,11 +128,11 @@ fla.realignmentParameters_flag = 1;
 
 
 for s = 1:length(subNames)
-    beta_loc            = fullfile(derived_dir,subNames{s},'MRI/analysis/glm/TrickVersionMagicMoment');
-    psyphysic_data_dir  = fullfile(derived_dir,subNames{s},'PsychoPhysik');
-    raw_data_dir        = fullfile(raw_dir,subNames{s},'func');
-    realignment_dir     = fullfile(derived_dir,subNames{s},'MRI/func/realigned');
-    runs                = dir(fullfile(realignment_dir,'run*'));
+    %% Define where to store and the results and where to look for functional and anatomical data
+    beta_loc            = fullfile(derived_dir,'spm12flaModelEveryVideoSpecialMoment',subNames{s});
+    realigned_data_dir  = fullfile(derived_dir,'realigned',subNames{s},'func'); % TODO: make more elegant
+    psyphysic_data_dir  = fullfile(derived_dir,'PsychoPhysic',subNames{s});
+    runs                = dir(fullfile(smoothed_data_dir,'run*'));
     nruns               = length(runs); % Number of Runs
     
     %% Model especification of FLA

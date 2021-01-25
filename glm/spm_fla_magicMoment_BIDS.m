@@ -92,9 +92,9 @@ matfile_dir = uigetfile(pwd, 'Select the .mat file');
 load(matfile_dir);
 
 %% Define what to do
-do.SpecifyDesign      = 0;
-do.loadlog            = 0; % load LOG files!
-do.estimate           = 0;
+do.SpecifyDesign      = 1;
+do.loadlog            = 1; % load LOG files!
+do.estimate           = 1;
 do.DefContrasts       = 1;
 
 %% Settings
@@ -102,10 +102,12 @@ settings.matprefix = input (['Please specify the prefix of your participant data
     '(like p for participant or s for subject. It has to be unique so that only subject folders are selected):\n'],'s');
 settings.preprocessing = ['^s6wauf' '.*nii']; % ['^s2au' '.*nii']: realigned, slice time corrected, 6mm-smoothed data
 
-folders = dir(fullfile(derived_dir,[settings.matprefix, '*']));
+data_dir = fullfile(derived_dir,'6smoothed');
+folders = dir(fullfile(data_dir,[settings.matprefix, '*']));
+
 subNames = {folders(:).name}; 
 % create a "first_level_analysis" folder
-spm_mkdir(fullfile(derived_dir), subNames, 'MRI/analysis/first_level_analysis/SpecialMoment');
+spm_mkdir(fullfile(derived_dir), 'spm12flaSpecialMoment', subNames);
 
 
 %% Get experimental design parameters
@@ -128,10 +130,10 @@ frame_time                  = 1/fps;% Time every frame is presented
 
 for s = 1:length(subNames)
     %% Define where to store and the results and where to look for functional and anatomical data
-    beta_loc            = fullfile(derived_dir,subNames{s},'MRI/analysis/first_level_analysis/SpecialMoment');
-    smoothed_data_dir   = fullfile(derived_dir,subNames{s},'MRI/func/6smoothed'); % TODO: make more elegant
-    realigned_data_dir  = fullfile(derived_dir,subNames{s},'MRI/func/realigned'); % TODO: make more elegant
-    psyphysic_data_dir  = fullfile(derived_dir,subNames{s},'PsychoPhysik');
+    beta_loc            = fullfile(derived_dir,'spm12flaSpecialMoment',subNames{s});
+    smoothed_data_dir   = fullfile(derived_dir,'6smoothed',subNames{s},'func'); 
+    realigned_data_dir  = fullfile(derived_dir,'realigned',subNames{s},'func'); 
+    psyphysic_data_dir  = fullfile(derived_dir,'PsychoPhysic',subNames{s});
     runs                = dir(fullfile(smoothed_data_dir,'run*'));
     nruns               = length(runs); % Number of Runs
     
