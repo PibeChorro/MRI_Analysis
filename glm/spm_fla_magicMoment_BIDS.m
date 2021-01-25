@@ -118,10 +118,15 @@ fla.conditionNames  = {
     'Appear1_Control'   ; 'Appear2_Control'; ...
     'Vanish1_Control'   ; 'Vanish2_Control';...
     'Change1_Control'   ; 'Change2_Control';...
-    'Surprise1'         ; 'Surprise2';...
-    'Surprise3'
-    };
-fla.nconditions                 = length(fla.conditionNames);
+    'Surprise'};
+%     'Surprise1'         ; 'Surprise2';...
+%     'Surprise3'
+%     };
+fla.nconditions     = length(fla.conditionNames);
+numMag              = 6;
+numCon              = 6;
+numSur              = 1;
+
 fla.realignmentParameters_flag  = 1;
 
 %% Information about the videos
@@ -190,6 +195,7 @@ for s = 1:length(subNames)
                     'rp 5';...
                     'rp 6'
                     ];
+                numRaPara = length(raParamNames);
                 
                 % Load alignment parameters
                 AlignmentFile    = spm_select('List',fullfile(realigned_data_dir,runs(r).name),'^rp_.*.txt'); % get realignment parameters
@@ -300,113 +306,103 @@ for s = 1:length(subNames)
             {'Magic > NoMagic Before'; ... %1
             'NoMagic > Magic Before'; ...  %2 
             'Magic Before > Magic After';...%3
-            'Appear Before > Appear After';...%3a
-            'Vanish Before > Vanish After';...%3b
-            'Change Before > Change After';...%3c
             'Magic After > Magic Before';...%4
-            'Appear After > Appear Before';...%4a
-            'Vanish After > Vanish Before';...%4b
-            'Change After > Change Before';...%4c
             'Magic > Surprise Before';...  %5
             'Surpise > Magic Before';...  %6
             'Surprise > NoMagic'; ... % 7
             'NoMagic > Surprise'; ... %8
-            'Appear > Control Before'; ... 9
-            'Control > Appear Before'; ... 9a
-            'Vanish > Control Before'; ... %10
-            'Control > Vanish Before'; ... %10a
-            'Change > Control Before'; ... %11
-            'Control > Change Before'; ... %11a
-            'Appear > Surprise Before'; ... %12
-            'Vanish > Surprise Before'; ... %13
-            'Change > Surprise Before'; ... %14
-            'Magic > NoMagic After'; ... %15
-            'NoMagic > Magic After'; ... %16 
-            'Magic > Surprise After'; ... %17
-            'Surpise > Magic After'; ...  %18
-            'Appear > Control After'; ... %19
-            'Vanish > Control After'; ... %20
-            'Change > Control After'; ... %21
-            'Appear > Surprise After'; ... %22
-            'Vanish > Surprise After'; ... %23
-            'Change > Surprise After';... %24
+            'Magic > NoMagic After'; ... %9
+            'NoMagic > Magic After'; ... %10 
+            'Magic > Surprise After'; ... %11
+            'Surpise > Magic After'; ...  %12
+            'MagPre-ConPre vs MagPost-ConPost';... %13
+            'MagPost-ConPost vs MagPre-ConPre';... %14
+            'Appear Before > Appear After';...%15
+            'Vanish Before > Vanish After';...%16
+            'Change Before > Change After';...%17
+            'Appear After > Appear Before';...%18
+            'Vanish After > Vanish Before';...%19
+            'Change After > Change Before';...%20
+            'Appear > Control Before'; ... %21
+            'Control > Appear Before'; ... %22
+            'Vanish > Control Before'; ... %23
+            'Control > Vanish Before'; ... %24
+            'Change > Control Before'; ... %25
+            'Control > Change Before'; ... %26
+            'Appear > Surprise Before'; ... %27
+            'Vanish > Surprise Before'; ... %28
+            'Change > Surprise Before'; ... %29
+            'Appear > Control After'; ... %30
+            'Vanish > Control After'; ... %31
+            'Change > Control After'; ... %32
+            'Appear > Surprise After'; ... %33
+            'Vanish > Surprise After'; ... %34
+            'Change > Surprise After';... %35
             % Interaction effects
-            'MagPre-ConPre vs MagPost-ConPost';... %25
-            'AppPre-ConPre vs AppPost-ConPost';... %26
-            'VanPre-ConPre vs Vanpost-ConPost';... % 27
-            'ChaPre-ConPre vs ChaPost-ConPost';... %28
-            'MagPost-ConPost vs MagPre-ConPre';... %29
-            'AppPost-ConPost vs AppPre-ConPre';... %30
-            'Vanpost-ConPost vs Vanpost-ConPost';... %31
-            'ChaPost-ConPost vs ChaPre-ConPre';... %32
+            'AppPre-ConPre vs AppPost-ConPost';... %36
+            'VanPre-ConPre vs Vanpost-ConPost';... %37
+            'ChaPre-ConPre vs ChaPost-ConPost';... %38
+            'AppPost-ConPost vs AppPre-ConPre';... %39
+            'Vanpost-ConPost vs Vanpost-ConPost';... %40
+            'ChaPost-ConPost vs ChaPre-ConPre';... %41
             % Contrats to outrule the timeconfound by comparing run 1vs2
             % and run 2vs3 - the same time difference, but the first is pre
             % vs pre and the other is pre vs post
-            'Magic PreVsPre (run 1vs2)';... %33
-            'Magic PreVsPost (run 2vs3)'... %34
+            'Magic PreVsPre (run 1vs2)';... %42
+            'Magic PreVsPost (run 2vs3)'... %43
             };
-            
+%       PreRevelation       Magic videos            NoMagic             Surprise           Realignment      PostRevelation  Magic videos         NoMagic             Surprise           Realignment
+        C1 = repmat([repmat([ones(1,numMag)         ones(1,numCon)*(-1) zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
+        C2 = repmat([repmat([ones(1,numMag)*(-1)    ones(1,numCon)      zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
+        C3 = repmat([repmat([ones(1,numMag)         zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)*(-1) zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
+        C4 = repmat([repmat([ones(1,numMag)*(-1)    zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)      zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
+        C5 = repmat([repmat([ones(1,numMag)         zeros(1,numCon)     ones(1,numSur)*(-6) zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
+        C6 = repmat([repmat([ones(1,numMag)*(-1)    zeros(1,numCon)     ones(1,numSur)*6    zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
+        C7 = repmat([repmat([zeros(1,numMag)        ones(1,numCon)*(-1) ones(1,numSur)*6    zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     ones(1,numCon)*(-1) ones(1,numSur)*6    zeros(1,numRaPara)],1,2)],1,3);
+        C8 = repmat([repmat([zeros(1,numMag)        ones(1,numCon)      ones(1,numSur)*(-6) zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     ones(1,numCon)      ones(1,numSur)*(-6) zeros(1,numRaPara)],1,2)],1,3);
+        C9 = repmat([repmat([zeros(1,numMag)        zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)      ones(1,numCon)*(-1) zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
+        C10= repmat([repmat([zeros(1,numMag)        zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)*(-1) ones(1,numCon)      zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
+        C11= repmat([repmat([zeros(1,numMag)        zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)      zeros(1,numCon)     ones(1,numSur)*(-6) zeros(1,numRaPara)],1,2)],1,3);
+        C12= repmat([repmat([zeros(1,numMag)        zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)*(-1) zeros(1,numCon)     ones(1,numSur)*6    zeros(1,numRaPara)],1,2)],1,3);
+%       Interaction Effects
+        C13= repmat([repmat([ones(1,numMag)         ones(1,numCon)*(-1) zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)*(-1) ones(1,numCon)      zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
+        C14= repmat([repmat([ones(1,numMag)*(-1)    ones(1,numCon)      zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)      ones(1,numCon)*(-1) zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
+        %                   AppearM VanishM ChangeM AppearC VanishC ChangeC Surprise            Realignment     PostRevelation  AppearM VanishM ChangeM AppearC VanishC ChangeC Surprise             Realignment
+        C15= repmat([repmat([1 1    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([-1 -1  0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C16= repmat([repmat([0 0    1 1     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    -1 -1   0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C17= repmat([repmat([0 0    0 0     1 1     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     -1 -1   0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C18= repmat([repmat([-1 -1  0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([1 1    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C19= repmat([repmat([0 0    -1 -1   0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    1 1     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C20= repmat([repmat([0 0    0 0     -1 -1   0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     1 1     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C21= repmat([repmat([1 1    0 0     0 0     -1 -1   0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C22= repmat([repmat([-1 -1  0 0     0 0     1 1     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C23= repmat([repmat([0 0    1 1     0 0     0 0     -1 -1   0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C24= repmat([repmat([0 0    -1 -1   0 0     0 0     1 1     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C25= repmat([repmat([0 0    0 0     1 1     0 0     0 0     -1 -1   zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C26= repmat([repmat([0 0    0 0     -1 -1   0 0     0 0     1 1     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C27= repmat([repmat([1 1    0 0     0 0     0 0     0 0     0 0     ones(1,numSur)*(-2) zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C28= repmat([repmat([0 0    1 1     0 0     0 0     0 0     0 0     ones(1,numSur)*(-2) zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C29= repmat([repmat([0 0    0 0     1 1     0 0     0 0     0 0     ones(1,numSur)*(-2) zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C30= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([1 1    0 0     0 0     -1 -1   0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C31= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    1 1     0 0     0 0     -1 -1   0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C32= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     1 1     0 0     0 0     -1 -1   zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
+        C33= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([1 1    0 0     0 0     0 0     0 0     0 0     ones(1,numSur)*(-2)  zeros(1,numRaPara)],1,2)],1,3);
+        C34= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    1 1     0 0     0 0     0 0     0 0     ones(1,numSur)*(-2)  zeros(1,numRaPara)],1,2)],1,3);
+        C35= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     1 1     0 0     0 0     0 0     ones(1,numSur)*(-2)  zeros(1,numRaPara)],1,2)],1,3);
+%       Interaction Effects
+        C36= repmat([repmat([1 1    0 0     0 0     -1 -1   0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([-1 -1  0 0     0 0     1 1     0 0     0 0     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,3);
+        C37= repmat([repmat([0 0    1 1     0 0     0 0     -1 -1   0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    -1 -1   0 0     0 0     1 1     0 0     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,3);
+        C38= repmat([repmat([0 0    0 0     1 1     0 0     0 0     -1 -1   zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     -1 -1   0 0     0 0     1 1     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,3);
+        C39= repmat([repmat([-1 -1  0 0     0 0     1 1     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([1 1    0 0     0 0     -1 -1   0 0     0 0     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,3);
+        C40= repmat([repmat([0 0    -1 -1   0 0     0 0     1 1     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    1 1     0 0     0 0     -1 -1   0 0     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,3);
+        C41= repmat([repmat([0 0    0 0     -1 -1   0 0     0 0     1 1     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     1 1     0 0     0 0     -1 -1   zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,3);
+        %   FirstRun Magic           NoMagic         Surprise        Realignment SecondRun   Magic                NoMagic         Surprise        Realignment Postrevelation  Magic           NoMagic         Surprise        Realignment
+        C42= repmat([ones(1,numMag)  zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)      ones(1,numMag)*(-1)  zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)  repmat([zeros(1,numMag) zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,3);
+        %   FirstRun Magic           NoMagic         Surprise        Realignment SecondRun   Magic            NoMagic         Surprise        Realignment   ThirdRun  Magic                 NoMagic         Surprise        Realignment FourthRun   Magic           NoMagic         Surprise        Realignment
+        C43= repmat([zeros(1,numMag) zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)      ones(1,numMag)   zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)      ones(1,numMag)*(-1)   zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)      zeros(1,numMag) zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)],1,3);
         
-        %       PreRevelation   Magic videos    NoMagic         Surprise        Realignment                         PostRevelation  Magic videos    NoMagic             Surprise       Realignment
-        C1 = repmat([repmat(    [ones(1,6)      ones(1,6)*(-1)  zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [zeros(1,6)     zeros(1,6)      zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C2 = repmat([repmat(    [ones(1,6)*(-1) ones(1,6)       zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [zeros(1,6)     zeros(1,6)      zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C3 = repmat([repmat(    [ones(1,6)      zeros(1,6)      zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [ones(1,6)*(-1) zeros(1,6)      zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        %                       AppearM VanishM ChangeM AppearC VanishC ChangeC Surprise        Realignment                         PostRevelation  AppearM VanishM ChangeM AppearC     VanishC ChangeC     Surprise        Realignment
-        C3a= repmat([repmat(    [1 1    0 0     0 0     0 0     0 0     0 0     zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [-1 -1  0 0     0 0     0 0         0 0     0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C3b= repmat([repmat(    [0 0    1 1     0 0     0 0     0 0     0 0     zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    -1 -1   0 0     0 0         0 0     0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C3c= repmat([repmat(    [0 0    0 0     1 1     0 0     0 0     0 0     zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    0 0     -1 -1   0 0         0 0     0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        %       PreRevelation   Magic videos    NoMagic         Surprise        Realignment                         PostRevelation  Magic videos    NoMagic             Surprise       Realignment
-        C4 = repmat([repmat(    [ones(1,6)*(-1) zeros(1,6)      zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [ones(1,6)      zeros(1,6)      zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        %                       AppearM VanishM ChangeM AppearC VanishC ChangeC Surprise        Realignment                         PostRevelation  AppearM VanishM ChangeM AppearC     VanishC ChangeC     Surprise        Realignment
-        C4a= repmat([repmat(    [-1 -1  0 0     0 0     0 0     0 0     0 0     zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [1 1    0 0     0 0     0 0         0 0     0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C4b= repmat([repmat(    [0 0    -1 -1   0 0     0 0     0 0     0 0     zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    1 1     0 0     0 0         0 0     0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C4c= repmat([repmat(    [0 0    0 0     -1 -1   0 0     0 0     0 0     zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    0 0     1 1     0 0         0 0     0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        %       PreRevelation   Magic videos    NoMagic         Surprise        Realignment                         PostRevelation  Magic videos    NoMagic             Surprise       Realignment        
-        C5 = repmat([repmat(    [ones(1,6)      zeros(1,6)      ones(1,3)*(-2)  zeros(1,length(raParamNames))],1,2)     repmat(     [zeros(1,6)     zeros(1,6)      zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C6 = repmat([repmat(    [ones(1,6)*(-1) zeros(1,6)      ones(1,3)*2     zeros(1,length(raParamNames))],1,2)     repmat(     [zeros(1,6)     zeros(1,6)      zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C7 = repmat([repmat(    [zeros(1,6)     ones(1,6)*(-1)  ones(1,3)*2     zeros(1,length(raParamNames))],1,2)     repmat(     [zeros(1,6)     ones(1,6)*(-1)  ones(1,3)*2     zeros(1,length(raParamNames))],1,2)],1,3);
-        C8 = repmat([repmat(    [zeros(1,6)     ones(1,6)       ones(1,3)*(-2)  zeros(1,length(raParamNames))],1,2)     repmat(     [zeros(1,6)     ones(1,6)       ones(1,3)*(-2)  zeros(1,length(raParamNames))],1,2)],1,3);
-        %                       AppearM VanishM ChangeM AppearC VanishC ChangeC Surprise        Realignment                         PostRevelation  AppearM VanishM ChangeM AppearC     VanishC ChangeC     Surprise        Realignment
-        C9 = repmat([repmat(    [1 1    0 0     0 0     -1 -1   0 0     0 0     zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    0 0     0 0     0 0         0 0     0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C9a= repmat([repmat(    [-1 -1  0 0     0 0     1 1     0 0     0 0     zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    0 0     0 0     0 0         0 0     0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C10= repmat([repmat(    [0 0    1 1     0 0     0 0     -1 -1   0 0     zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    0 0     0 0     0 0         0 0     0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C10a=repmat([repmat(    [0 0    -1 -1   0 0     0 0     1 1     0 0     zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    0 0     0 0     0 0         0 0     0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C11= repmat([repmat(    [0 0    0 0     1 1     0 0     0 0     -1 -1   zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    0 0     0 0     0 0         0 0     0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C11a=repmat([repmat(    [0 0    0 0     -1 -1   0 0     0 0     1 1     zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    0 0     0 0     0 0         0 0     0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C12= repmat([repmat(    [3 3    0 0     0 0     0 0     0 0     0 0     ones(1,3)*(-1)  zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    0 0     0 0     0 0         0 0     0 0         ones(1,3)*(-1)  zeros(1,length(raParamNames))],1,2)],1,3);
-        C13= repmat([repmat(    [0 0    3 3     0 0     0 0     0 0     0 0     ones(1,3)*(-1)  zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    0 0     0 0     0 0         0 0     0 0         ones(1,3)*(-1)  zeros(1,length(raParamNames))],1,2)],1,3);
-        C14= repmat([repmat(    [0 0    0 0     3 3     0 0     0 0     0 0     ones(1,3)*(-1)  zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    0 0     0 0     0 0         0 0     0 0         ones(1,3)*(-1)  zeros(1,length(raParamNames))],1,2)],1,3);
-        %       PreRevelation       Magic videos    NoMagic     Surprise    Realignment                             PostRevelation  Magic videos    NoMagic          Surprise         Realignment
-        C15= repmat([   repmat(     [zeros(1,6)     zeros(1,6)  zeros(1,3)  zeros(1,length(raParamNames))],1,2)     repmat(         [ones(1,6)      ones(1,6)*(-1)   zeros(1,3)       zeros(1,length(raParamNames))],1,2)],1,3);
-        C16= repmat([   repmat(     [zeros(1,6)     zeros(1,6)  zeros(1,3)  zeros(1,length(raParamNames))],1,2)     repmat(         [ones(1,6)*(-1) ones(1,6)        zeros(1,3)       zeros(1,length(raParamNames))],1,2)],1,3);
-        C17= repmat([   repmat(     [zeros(1,6)     zeros(1,6)  zeros(1,3)  zeros(1,length(raParamNames))],1,2)     repmat(         [ones(1,6)      zeros(1,6)       ones(1,3)*(-2)   zeros(1,length(raParamNames))],1,2)],1,3);
-        C18= repmat([   repmat(     [zeros(1,6)     zeros(1,6)  zeros(1,3)  zeros(1,length(raParamNames))],1,2)     repmat(         [ones(1,6)*(-1) zeros(1,6)       ones(1,3)*2      zeros(1,length(raParamNames))],1,2)],1,3);
-        %       PreRevelation   AppearM VanishM ChangeM AppearC VanishC     ChangeC     Surprise    Realignment                         PostRevelation  AppearM VanishM ChangeM AppearC     VanishC     ChangeC     Surprise        Realignment                     
-        C19= repmat([   repmat( [0 0    0 0     0 0     0 0     0 0         0 0         zeros(1,3)  zeros(1,length(raParamNames))],1,2)    repmat(      [1 1    0 0     0 0     -1 -1   0 0         0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C20= repmat([   repmat( [0 0    0 0     0 0     0 0     0 0         0 0         zeros(1,3)  zeros(1,length(raParamNames))],1,2)    repmat(      [0 0    1 1     0 0     0 0         -1 -1   0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C21= repmat([   repmat( [0 0    0 0     0 0     0 0     0 0         0 0         zeros(1,3)  zeros(1,length(raParamNames))],1,2)    repmat(      [0 0    0 0     1 1     0 0         0 0         -1 -1   zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C22= repmat([   repmat( [0 0    0 0     0 0     0 0     0 0         0 0         zeros(1,3)  zeros(1,length(raParamNames))],1,2)    repmat(      [3 3    0 0     0 0     0 0         0 0         0 0         ones(1,3)*(-2)  zeros(1,length(raParamNames))],1,2)],1,3);
-        C23= repmat([   repmat( [0 0    0 0     0 0     0 0     0 0         0 0         zeros(1,3)  zeros(1,length(raParamNames))],1,2)    repmat(      [0 0    3 3     0 0     0 0         0 0         0 0         ones(1,3)*(-2)  zeros(1,length(raParamNames))],1,2)],1,3);
-        C24= repmat([   repmat( [0 0    0 0     0 0     0 0     0 0         0 0         zeros(1,3)  zeros(1,length(raParamNames))],1,2)    repmat(      [0 0    0 0     3 3     0 0         0 0         0 0         ones(1,3)*(-2)  zeros(1,length(raParamNames))],1,2)],1,3);
-        %       PreRevelation   Magic videos    NoMagic         Surprise        Realignment                         PostRevelation  Magic videos    NoMagic         Surprise        Realignment
-        C25= repmat([repmat(    [ones(1,6)      ones(1,6)*(-1)  zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [ones(1,6)*(-1) ones(1,6)       zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        %       PreRevelation   AppearM VanishM ChangeM AppearC VanishC ChangeC Surprise        Realignment                         PostRevelation  AppearM VanishM ChangeM AppearC     VanishC ChangeC     Surprise        Realignment
-        C26= repmat([repmat(    [1 1    0 0     0 0     -1 -1   0 0     0 0     zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [-1 -1  0 0     0 0     1 1         0 0     0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C27= repmat([repmat(    [0 0    1 1     0 0     0 0     -1 -1   0 0     zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    -1 -1   0 0     0 0         1 1     0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C28= repmat([repmat(    [0 0    0 0     1 1     0 0     0 0     -1 -1   zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    0 0     -1 -1   0 0         0 0     1 1         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        %       PreRevelation   Magic videos    NoMagic         Surprise        Realignment                         PostRevelation  Magic videos    NoMagic         Surprise        Realignment
-        C29= repmat([repmat(    [ones(1,6)*(-1) ones(1,6)       zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [ones(1,6)      ones(1,6)*(-1)  zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        %                       AppearM VanishM ChangeM AppearC VanishC ChangeC Surprise        Realignment                         PostRevelation  AppearM VanishM ChangeM AppearC     VanishC ChangeC     Surprise        Realignment
-        C30= repmat([repmat(    [-1 -1  0 0     0 0     1 1     0 0     0 0     zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [1 1    0 0     0 0     -1 -1       0 0     0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C31= repmat([repmat(    [0 0    -1 -1   0 0     0 0     1 1     0 0     zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    1 1     0 0     0 0         -1 -1   0 0         zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        C32= repmat([repmat(    [0 0    0 0     -1 -1   0 0     0 0     1 1     zeros(1,3)      zeros(1,length(raParamNames))],1,2)     repmat(     [0 0    0 0     1 1     0 0         0 0     -1 -1       zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        %       PreRevelation   Magic       NoMagic     Surprise        Realignment            SecondRun   Magic            NoMagic     Surprise        Realignment                      Postrevelation     Magic           NoMagic  Surprise        Realignment
-        C33= repmat([           ones(1,6)   zeros(1,6)  zeros(1,3)      zeros(1,length(raParamNames))      ones(1,6)*(-1)   zeros(1,6)  zeros(1,3)      zeros(1,length(raParamNames))           repmat([    zeros(1,6)   zeros(1,6)  zeros(1,3)      zeros(1,length(raParamNames))],1,2)],1,3);
-        %       FirstRun        Magic       NoMagic     Surprise        Realignment            SecondRun   Magic            NoMagic     Surprise        Realignment                      ThirdRun   Magic           NoMagic     Surprise    Realignment                     FourthRun   Magic           NoMagic  Surprise        Realignment
-        C34= repmat([           zeros(1,6)  zeros(1,6)  zeros(1,3)      zeros(1,length(raParamNames))      ones(1,6)        zeros(1,6)  zeros(1,3)      zeros(1,length(raParamNames))               ones(1,6)*(-1)  zeros(1,6)  zeros(1,3)  zeros(1,length(raParamNames))               zeros(1,6)  zeros(1,6)  zeros(1,3)      zeros(1,length(raParamNames))],1,3);
-        Contrasts = [C1; C2; C3; C3a; C3b; C3c; C4; C4a; C4b; C4c; C5; C6; C7; C8; C9; C9a; C10; C10a; C11; C11a; C12; C13; C14; C15; C16; C17; C18; C19; C20;...
-            C21; C22; C23; C24; C25; C26; C27; C28; C29; C30; C31; C32; C33; C34];
-        
+        Contrasts = [C1; C2; C3; C5; C6; C7; C8; C9; C10; C11; C12; C13; C14; C15; C16; C17; C18; C19; C20;...
+            C21; C22; C23; C24; C25; C26; C27; C28; C29; C30; C31; C32; C33; C34; C35; C36; C37; C38; C39; C40; C41; C42; C43];
                 
         % safety net: check if sum of contrasts is 0
         if any(sum(Contrasts,2))
