@@ -89,6 +89,11 @@ end
 fprintf('Please select the .mat file, that contains the information about the special moments.\n\n')
 matfile_dir = uigetfile(pwd, 'Select the .mat file');
 
+% information about the videos. Important is only the framerate and thus
+% the time every frame was presented
+fps = 25;
+frame_time = 1/fps;
+
 load(matfile_dir);
 % get the data from the preprocessing pipeline you want
 pipelineName        = 'spm12-preproc';
@@ -123,9 +128,6 @@ fla.conditionNames  = {
     'Vanish1_Control'   ; 'Vanish2_Control';...
     'Change1_Control'   ; 'Change2_Control';...
     'Surprise'};
-%     'Surprise1'         ; 'Surprise2';...
-%     'Surprise3'
-%     };
 fla.nconditions = length(fla.conditionNames);
 numMag          = 6;
 numCon          = 6;
@@ -230,7 +232,7 @@ for s = 1:length(subNames)
                 
                 % IMPORTANT: this throws an error if there is a space in
                 % your path. 
-                load(log_matfiles(r,:));
+                load(strtrim(log_matfiles(r,:)));
                 
                 % specify the trial onsets and durations.
                 % We iterate over our conditions specified above

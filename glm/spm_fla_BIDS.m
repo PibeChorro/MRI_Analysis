@@ -218,7 +218,7 @@ for s = 1:length(subNames)
                 
                 % IMPORTANT: this throws an error if there is a space in
                 % your path. 
-                load(log_matfiles(r,:));
+                load(strtrim(log_matfiles(r,:)));
                 
                 % specify the trial onsets and durations.
                 % We iterate over our conditions specified above
