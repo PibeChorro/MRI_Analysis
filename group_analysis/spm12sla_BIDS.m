@@ -84,9 +84,16 @@ if ~isfolder(derived_dir)
     end
 end
 
+% get the data from the preprocessing pipeline you want
+pipelineName        = 'spm12-fla';
+wholeVideoGLMName   = 'WholeVideo';
+specialMomentGLMName= 'SpecialMoment';
+% specify the name of the processing pipeline
+analysisPipeline    = 'spm12-sla';
+
 %% create a folder that contains the results of the second level analysis
 
-sec_level_dir = fullfile(derived_dir,'GroupAnalysis');
+sec_level_dir = fullfile(derived_dir,analysisPipeline);
 if ~isfolder(derived_dir)
     mkdir(sec_level_dir)
 end
@@ -103,28 +110,31 @@ settings.matprefix = input (['Please specify the prefix of your participant data
 % specify format for folder numeration
 formatSpec = '%04i';
 
-folders = dir(fullfile(derived_dir,'spm12flaWholeVideo',[settings.matprefix, '*']));
+folders = dir(fullfile(derived_dir,pipelineName,wholeVideoGLMName,[settings.matprefix, '*']));
 subNames = {folders(:).name}; 
 
 % load in one SPM.mat file to read out the contrasts
-load(fullfile(derived_dir,'spm12flaWholeVideo',subNames{1},'SPM.mat'));
+load(fullfile(derived_dir,pipelineName,wholeVideoGLMName,subNames{1},'SPM.mat'));
 nContrasts = length(SPM.xCon);
+
+%% The actual second level analysis
 % Iterate over all contrasts
 for C = 1:nContrasts 
 
     if do.SpecifyDesign
     
+        dataDir = fullfile(derived_dir,pipelineName,wholeVideoGLMName);
         contrasts_dirs = {};
 
         for s = 1:length(subNames)
 
-            current_dir = fullfile(derived_dir,'spm12flaWholeVideo',subNames{s});
+            current_dir = fullfile(dataDir,subNames{s});
             contrasts_dirs{end+1} = fullfile(current_dir,['con_' num2str(C,formatSpec) '.nii']);
 
         end
 
         %% specify analysis parameter
-        matlabbatch{1}.spm.stats.factorial_design.dir = {fullfile(sec_level_dir,'WholeVideo',SPM.xCon(C).name)};
+        matlabbatch{1}.spm.stats.factorial_design.dir = {fullfile(sec_level_dir,wholeVideoGLMName,SPM.xCon(C).name)};
         matlabbatch{1}.spm.stats.factorial_design.des.t1.scans = contrasts_dirs';
         matlabbatch{1}.spm.stats.factorial_design.cov = struct('c', {}, 'cname', {}, 'iCFI', {}, 'iCC', {});
         matlabbatch{1}.spm.stats.factorial_design.multi_cov = struct('files', {}, 'iCFI', {}, 'iCC', {});
@@ -142,17 +152,18 @@ for C = 1:nContrasts
 
 
         %% respecify the contrasts to include in the analysis
+        dataDir = fullfile(derived_dir,pipelineName,specialMomentGLMName);
         contrasts_dirs = {};
 
         for s = 1:length(subNames)
 
-            current_dir = fullfile(derived_dir,'spm12flaSpecialMoment',subNames{s});
+            current_dir = fullfile(dataDir,subNames{s});
             contrasts_dirs{end+1} = fullfile(current_dir,['con_' num2str(C,formatSpec) '.nii']);
 
         end
 
         %% respecify analysis parameter
-        matlabbatch{1}.spm.stats.factorial_design.dir           = {fullfile(sec_level_dir,'SpecialMoment',SPM.xCon(C).name)};
+        matlabbatch{1}.spm.stats.factorial_design.dir           = {fullfile(sec_level_dir,specialMomentGLMName,SPM.xCon(C).name)};
         matlabbatch{1}.spm.stats.factorial_design.des.t1.scans  = contrasts_dirs';
 
         jobs = matlabbatch;
@@ -163,7 +174,7 @@ for C = 1:nContrasts
     
     if do.estimate
         
-        matlabbatch{1}.spm.stats.fmri_est.spmmat           = {fullfile(sec_level_dir,'WholeVideo',SPM.xCon(C).name, 'SPM.mat')};
+        matlabbatch{1}.spm.stats.fmri_est.spmmat           = {fullfile(sec_level_dir,wholeVideoGLMName,SPM.xCon(C).name, 'SPM.mat')};
         matlabbatch{1}.spm.stats.fmri_est.write_residuals  = 0;
         matlabbatch{1}.spm.stats.fmri_est.method.Classical = 1;
         
@@ -172,7 +183,7 @@ for C = 1:nContrasts
         spm_jobman('run', jobs);        
         clear jobs; clear matlabbatch;
         
-        matlabbatch{1}.spm.stats.fmri_est.spmmat           = {fullfile(sec_level_dir,'SpecialMoment',SPM.xCon(C).name, 'SPM.mat')};
+        matlabbatch{1}.spm.stats.fmri_est.spmmat           = {fullfile(sec_level_dir,specialMomentGLMName,SPM.xCon(C).name, 'SPM.mat')};
         matlabbatch{1}.spm.stats.fmri_est.write_residuals  = 0;
         matlabbatch{1}.spm.stats.fmri_est.method.Classical = 1;
         
@@ -185,7 +196,7 @@ for C = 1:nContrasts
     if do.DefContrasts
         
         %% Define contrasts:
-        matlabbatch{1}.spm.stats.con.spmmat = {fullfile(sec_level_dir,'WholeVideo',SPM.xCon(C).name, 'SPM.mat')};
+        matlabbatch{1}.spm.stats.con.spmmat = {fullfile(sec_level_dir,wholeVideoGLMName,SPM.xCon(C).name, 'SPM.mat')};
         matlabbatch{1}.spm.stats.con.delete = 1;
         
         % Name:
@@ -198,7 +209,7 @@ for C = 1:nContrasts
         
         spm_jobman('run', matlabbatch);
         
-        matlabbatch{1}.spm.stats.con.spmmat = {fullfile(sec_level_dir,'SpecialMoment',SPM.xCon(C).name, 'SPM.mat')};
+        matlabbatch{1}.spm.stats.con.spmmat = {fullfile(sec_level_dir,specialMomentGLMName,SPM.xCon(C).name, 'SPM.mat')};
         spm_jobman('run', matlabbatch);
         
         clear matlabbatch;

@@ -75,6 +75,11 @@ if ~isfolder(derived_dir)
         error('No folder was selected --> I terminate the script')
     end
 end
+% get the data from the preprocessing pipeline you want
+pipelineName        = 'spm12-preproc';
+% specify the name of the processing pipeline
+analysisPipeline    = 'spm12-fla';
+analysisName        = 'WholeVideo';
 
 %% Define what to do
 do.SpecifyDesign      = 1;
@@ -87,11 +92,11 @@ settings.matprefix = input (['Please specify the prefix of your participant data
     '(like p for participant or s for subject. It has to be unique so that only subject folders are selected):\n'],'s');
 settings.preprocessing = ['^s6wauf' '.*nii']; % realigned, slice time corrected, normalized, 6mm-smoothed data
 
-data_dir = fullfile(derived_dir,'6smoothed');
+data_dir = fullfile(derived_dir,pipelineName,'6smoothed');
 folders = dir(fullfile(data_dir,[settings.matprefix, '*']));
 subNames = {folders(:).name}; 
 % create a "first_level_analysis" folder
-spm_mkdir(fullfile(derived_dir), 'spm12flaWholeVideo', subNames);
+spm_mkdir(fullfile(derived_dir,analysisPipeline), analysisName, subNames);
 
 
 %% Get experimental design parameters
@@ -103,23 +108,27 @@ fla.conditionNames  = {
     'Vanish1_Control'   ; 'Vanish2_Control';...
     'Change1_Control'   ; 'Change2_Control';...
     'Surprise'};
-%     'Surprise1'         ; 'Surprise2';...
-%     'Surprise3'
-%     };
-fla.nconditions                 = length(fla.conditionNames);
-numMag = 6;
-numCon = 6;
-numSur = 1;
+
+fla.nconditions = length(fla.conditionNames);
+numMag          = 6;
+numCon          = 6;
+numSur          = 1;
+numBlocks       = 3;
 fla.realignmentParameters_flag  = 1;
 
 for s = 1:length(subNames)
     %% Define where to store and the results and where to look for functional and anatomical data
-    beta_loc            = fullfile(derived_dir,'spm12flaWholeVideo',subNames{s});
-    smoothed_data_dir   = fullfile(derived_dir,'6smoothed',subNames{s},'func'); 
-    realigned_data_dir  = fullfile(derived_dir,'realigned',subNames{s},'func'); 
+    beta_loc            = fullfile(derived_dir,analysisPipeline,analysisName,subNames{s});
+    smoothed_data_dir   = fullfile(derived_dir,pipelineName,'6smoothed',subNames{s},'func'); 
+    realigned_data_dir  = fullfile(derived_dir,pipelineName,'realigned',subNames{s},'func'); 
     psyphysic_data_dir  = fullfile(derived_dir,'PsychoPhysic',subNames{s});
     runs                = dir(fullfile(smoothed_data_dir,'run*'));
     nruns               = length(runs); % Number of Runs
+    
+    %% load a dicom header that contains information needed for analysis
+    dicom_dir   = fullfile(source_dir,subNames{s},'func',runs(1).name);
+    dicom_files = dir(fullfile(dicom_dir, '*.IMA'));
+    hdr         = spm_dicom_headers(fullfile(dicom_dir,dicom_files(1).name));
     
     %% Model specification of FLA
     if do.SpecifyDesign == 1 % Model specification
@@ -127,9 +136,15 @@ for s = 1:length(subNames)
         %% DEFINE MODEL PARAMETERS GENERAL
         matlabbatch{1}.spm.stats.fmri_spec.dir              = {beta_loc};           % The directory, the SPM.mat and all betas are written
         matlabbatch{1}.spm.stats.fmri_spec.timing.units     = 'secs';               % 'secs' or 'scans' unit
-        matlabbatch{1}.spm.stats.fmri_spec.timing.RT        = 2;                    % TR
-        matlabbatch{1}.spm.stats.fmri_spec.timing.fmri_t    = 16;                   % micro-timing 36 or 16
-        matlabbatch{1}.spm.stats.fmri_spec.timing.fmri_t0   = 8;                    % if 8 --> T0 = reference slice is the one in the middle. 18 or 8
+        matlabbatch{1}.spm.stats.fmri_spec.timing.RT        = hdr{1}.RepetitionTime/1000;% TR
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % https://www.jiscmail.ac.uk/cgi-bin/webadmin?A2=spm;70bf5c7f.0904
+        % suggest to set the microtime resolution to the number of slices,
+        % if slice time correction was implemented and microtime onset to
+        % the half
+        matlabbatch{1}.spm.stats.fmri_spec.timing.fmri_t    = hdr{1}.Private_0019_100a;     % Number of slices - before it was 16
+        matlabbatch{1}.spm.stats.fmri_spec.timing.fmri_t0   = hdr{1}.Private_0019_100a/2;   % Number of slices - before it was 8 --> T0 = reference slice is the one in the middle. 18 or 8
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         matlabbatch{1}.spm.stats.fmri_spec.fact             = struct('name', {}, 'levels', {});
         matlabbatch{1}.spm.stats.fmri_spec.bases.hrf.derivs = [0 0];                % derivatives
         matlabbatch{1}.spm.stats.fmri_spec.volt             = 1;                    % CHECK
@@ -138,14 +153,13 @@ for s = 1:length(subNames)
         matlabbatch{1}.spm.stats.fmri_spec.mask             = {''};                 % Mask?
         matlabbatch{1}.spm.stats.fmri_spec.cvi              = 'AR(1)';
         
-        nDummies                                            = 5;
-        
         for r = 1:nruns % For each run
             
             % Find functional files
             Path2Run    = fullfile(smoothed_data_dir,runs(r).name); 
             dirfiles    = spm_select('FPList',Path2Run,settings.preprocessing); 
             
+            % check if any files were selected. If not stop the script
             if strcmp(dirfiles,'')
                 warning('No files selected!');
                 return;
@@ -156,6 +170,7 @@ for s = 1:length(subNames)
             
             matlabbatch{1}.spm.stats.fmri_spec.sess(r).scans = cellstr(dirfiles); %For every run scans are added to the matlabbatch
             
+            % delete the variable 'dirfiles'
             clear dirfiles
             
             %......Include realignment parameters for each run
@@ -187,9 +202,8 @@ for s = 1:length(subNames)
             end
         end
         
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % % % % Define parameters such as conditions, button presses... % % % % % %
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % Load .mat files that contain condition information, such as
+        % condition names, onsets, offsets, etc.
         if do.loadlog == 1 % get the mat files
             log_matfiles        = spm_select('FPList', psyphysic_data_dir, 'log.mat'); % SELECT MAT FILES
         end
@@ -202,12 +216,26 @@ for s = 1:length(subNames)
             
             if do.loadlog == 1
                 
-                load(strrep(log_matfiles(r,:),' ',''));
+                % IMPORTANT: this throws an error if there is a space in
+                % your path. 
+                load(log_matfiles(r,:));
                 
+                % specify the trial onsets and durations.
+                % We iterate over our conditions specified above
                 fla.trial_onset={}; fla.trial_duration={};
                 for reg = 1:length (fla.conditionNames)
-                    fla.trial_onset{end+1}      = log.data.VideoStart(contains(log.data.Condition,fla.conditionNames(reg))) - log.data.VideoStart(1) + ...
-                        nDummies * matlabbatch{1}.spm.stats.fmri_spec.timing.RT;
+                    % from the matlab log file select the condition names.
+                    % Look which index contains the current condition.
+                    % Those indices are used to select the trial onset from
+                    % the matlab log file. The very first video onset is
+                    % substracted from every trial onset to set t0 = 0
+                    % We can ignore the dummy files since they were not
+                    % converted from DICOM into NIfTIs
+                    fla.trial_onset{end+1}      = log.data.VideoStart(contains(log.data.Condition,fla.conditionNames(reg))) - log.data.VideoStart(1); 
+                    
+                    % The same procedure as above to get the indices, but
+                    % for rating onset (which is stim offset minus stim
+                    % onset
                     fla.trial_duration{end+1}   = log.data.Rating_stimOn(contains(log.data.Condition,fla.conditionNames(reg)))...
                         -log.data.VideoStart(contains(log.data.Condition,fla.conditionNames(reg)));
                 end
@@ -309,54 +337,54 @@ for s = 1:length(subNames)
             'Magic PreVsPost (run 2vs3)'... %43
             };
 %       PreRevelation       Magic videos            NoMagic             Surprise           Realignment      PostRevelation  Magic videos         NoMagic             Surprise           Realignment
-        C1 = repmat([repmat([ones(1,numMag)         ones(1,numCon)*(-1) zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
-        C2 = repmat([repmat([ones(1,numMag)*(-1)    ones(1,numCon)      zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
-        C3 = repmat([repmat([ones(1,numMag)         zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)*(-1) zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
-        C4 = repmat([repmat([ones(1,numMag)*(-1)    zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)      zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
-        C5 = repmat([repmat([ones(1,numMag)         zeros(1,numCon)     ones(1,numSur)*(-6) zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
-        C6 = repmat([repmat([ones(1,numMag)*(-1)    zeros(1,numCon)     ones(1,numSur)*6    zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
-        C7 = repmat([repmat([zeros(1,numMag)        ones(1,numCon)*(-1) ones(1,numSur)*6    zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     ones(1,numCon)*(-1) ones(1,numSur)*6    zeros(1,numRaPara)],1,2)],1,3);
-        C8 = repmat([repmat([zeros(1,numMag)        ones(1,numCon)      ones(1,numSur)*(-6) zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     ones(1,numCon)      ones(1,numSur)*(-6) zeros(1,numRaPara)],1,2)],1,3);
-        C9 = repmat([repmat([zeros(1,numMag)        zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)      ones(1,numCon)*(-1) zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
-        C10= repmat([repmat([zeros(1,numMag)        zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)*(-1) ones(1,numCon)      zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
-        C11= repmat([repmat([zeros(1,numMag)        zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)      zeros(1,numCon)     ones(1,numSur)*(-6) zeros(1,numRaPara)],1,2)],1,3);
-        C12= repmat([repmat([zeros(1,numMag)        zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)*(-1) zeros(1,numCon)     ones(1,numSur)*6    zeros(1,numRaPara)],1,2)],1,3);
+        C1 = repmat([repmat([ones(1,numMag)         ones(1,numCon)*(-1) zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C2 = repmat([repmat([ones(1,numMag)*(-1)    ones(1,numCon)      zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C3 = repmat([repmat([ones(1,numMag)         zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)*(-1) zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C4 = repmat([repmat([ones(1,numMag)*(-1)    zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)      zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C5 = repmat([repmat([ones(1,numMag)         zeros(1,numCon)     ones(1,numSur)*(-6) zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C6 = repmat([repmat([ones(1,numMag)*(-1)    zeros(1,numCon)     ones(1,numSur)*6    zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C7 = repmat([repmat([zeros(1,numMag)        ones(1,numCon)*(-1) ones(1,numSur)*6    zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     ones(1,numCon)*(-1) ones(1,numSur)*6    zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C8 = repmat([repmat([zeros(1,numMag)        ones(1,numCon)      ones(1,numSur)*(-6) zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     ones(1,numCon)      ones(1,numSur)*(-6) zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C9 = repmat([repmat([zeros(1,numMag)        zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)      ones(1,numCon)*(-1) zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C10= repmat([repmat([zeros(1,numMag)        zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)*(-1) ones(1,numCon)      zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C11= repmat([repmat([zeros(1,numMag)        zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)      zeros(1,numCon)     ones(1,numSur)*(-6) zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C12= repmat([repmat([zeros(1,numMag)        zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)*(-1) zeros(1,numCon)     ones(1,numSur)*6    zeros(1,numRaPara)],1,2)],1,numBlocks);
 %       Interaction Effects
-        C13= repmat([repmat([ones(1,numMag)         ones(1,numCon)*(-1) zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)*(-1) ones(1,numCon)      zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
-        C14= repmat([repmat([ones(1,numMag)*(-1)    ones(1,numCon)      zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)      ones(1,numCon)*(-1) zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,3);
+        C13= repmat([repmat([ones(1,numMag)         ones(1,numCon)*(-1) zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)*(-1) ones(1,numCon)      zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C14= repmat([repmat([ones(1,numMag)*(-1)    ones(1,numCon)      zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)      ones(1,numCon)*(-1) zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,numBlocks);
         %                   AppearM VanishM ChangeM AppearC VanishC ChangeC Surprise            Realignment     PostRevelation  AppearM VanishM ChangeM AppearC VanishC ChangeC Surprise             Realignment
-        C15= repmat([repmat([1 1    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([-1 -1  0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C16= repmat([repmat([0 0    1 1     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    -1 -1   0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C17= repmat([repmat([0 0    0 0     1 1     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     -1 -1   0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C18= repmat([repmat([-1 -1  0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([1 1    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C19= repmat([repmat([0 0    -1 -1   0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    1 1     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C20= repmat([repmat([0 0    0 0     -1 -1   0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     1 1     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C21= repmat([repmat([1 1    0 0     0 0     -1 -1   0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C22= repmat([repmat([-1 -1  0 0     0 0     1 1     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C23= repmat([repmat([0 0    1 1     0 0     0 0     -1 -1   0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C24= repmat([repmat([0 0    -1 -1   0 0     0 0     1 1     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C25= repmat([repmat([0 0    0 0     1 1     0 0     0 0     -1 -1   zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C26= repmat([repmat([0 0    0 0     -1 -1   0 0     0 0     1 1     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C27= repmat([repmat([1 1    0 0     0 0     0 0     0 0     0 0     ones(1,numSur)*(-2) zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C28= repmat([repmat([0 0    1 1     0 0     0 0     0 0     0 0     ones(1,numSur)*(-2) zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C29= repmat([repmat([0 0    0 0     1 1     0 0     0 0     0 0     ones(1,numSur)*(-2) zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C30= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([1 1    0 0     0 0     -1 -1   0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C31= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    1 1     0 0     0 0     -1 -1   0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C32= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     1 1     0 0     0 0     -1 -1   zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,3);
-        C33= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([1 1    0 0     0 0     0 0     0 0     0 0     ones(1,numSur)*(-2)  zeros(1,numRaPara)],1,2)],1,3);
-        C34= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    1 1     0 0     0 0     0 0     0 0     ones(1,numSur)*(-2)  zeros(1,numRaPara)],1,2)],1,3);
-        C35= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     1 1     0 0     0 0     0 0     ones(1,numSur)*(-2)  zeros(1,numRaPara)],1,2)],1,3);
+        C15= repmat([repmat([1 1    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([-1 -1  0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C16= repmat([repmat([0 0    1 1     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    -1 -1   0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C17= repmat([repmat([0 0    0 0     1 1     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     -1 -1   0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C18= repmat([repmat([-1 -1  0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([1 1    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C19= repmat([repmat([0 0    -1 -1   0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    1 1     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C20= repmat([repmat([0 0    0 0     -1 -1   0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     1 1     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C21= repmat([repmat([1 1    0 0     0 0     -1 -1   0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C22= repmat([repmat([-1 -1  0 0     0 0     1 1     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C23= repmat([repmat([0 0    1 1     0 0     0 0     -1 -1   0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C24= repmat([repmat([0 0    -1 -1   0 0     0 0     1 1     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C25= repmat([repmat([0 0    0 0     1 1     0 0     0 0     -1 -1   zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C26= repmat([repmat([0 0    0 0     -1 -1   0 0     0 0     1 1     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C27= repmat([repmat([1 1    0 0     0 0     0 0     0 0     0 0     ones(1,numSur)*(-2) zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C28= repmat([repmat([0 0    1 1     0 0     0 0     0 0     0 0     ones(1,numSur)*(-2) zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C29= repmat([repmat([0 0    0 0     1 1     0 0     0 0     0 0     ones(1,numSur)*(-2) zeros(1,numRaPara)],1,2) repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C30= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([1 1    0 0     0 0     -1 -1   0 0     0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C31= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    1 1     0 0     0 0     -1 -1   0 0     zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C32= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     1 1     0 0     0 0     -1 -1   zeros(1,numSur)      zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C33= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([1 1    0 0     0 0     0 0     0 0     0 0     ones(1,numSur)*(-2)  zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C34= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    1 1     0 0     0 0     0 0     0 0     ones(1,numSur)*(-2)  zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C35= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     1 1     0 0     0 0     0 0     ones(1,numSur)*(-2)  zeros(1,numRaPara)],1,2)],1,numBlocks);
 %       Interaction Effects
-        C36= repmat([repmat([1 1    0 0     0 0     -1 -1   0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([-1 -1  0 0     0 0     1 1     0 0     0 0     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,3);
-        C37= repmat([repmat([0 0    1 1     0 0     0 0     -1 -1   0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    -1 -1   0 0     0 0     1 1     0 0     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,3);
-        C38= repmat([repmat([0 0    0 0     1 1     0 0     0 0     -1 -1   zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     -1 -1   0 0     0 0     1 1     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,3);
-        C39= repmat([repmat([-1 -1  0 0     0 0     1 1     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([1 1    0 0     0 0     -1 -1   0 0     0 0     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,3);
-        C40= repmat([repmat([0 0    -1 -1   0 0     0 0     1 1     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    1 1     0 0     0 0     -1 -1   0 0     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,3);
-        C41= repmat([repmat([0 0    0 0     -1 -1   0 0     0 0     1 1     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     1 1     0 0     0 0     -1 -1   zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,3);
+        C36= repmat([repmat([1 1    0 0     0 0     -1 -1   0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([-1 -1  0 0     0 0     1 1     0 0     0 0     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C37= repmat([repmat([0 0    1 1     0 0     0 0     -1 -1   0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    -1 -1   0 0     0 0     1 1     0 0     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C38= repmat([repmat([0 0    0 0     1 1     0 0     0 0     -1 -1   zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     -1 -1   0 0     0 0     1 1     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C39= repmat([repmat([-1 -1  0 0     0 0     1 1     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([1 1    0 0     0 0     -1 -1   0 0     0 0     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C40= repmat([repmat([0 0    -1 -1   0 0     0 0     1 1     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    1 1     0 0     0 0     -1 -1   0 0     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,numBlocks);
+        C41= repmat([repmat([0 0    0 0     -1 -1   0 0     0 0     1 1     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     1 1     0 0     0 0     -1 -1   zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,numBlocks);
         %   FirstRun Magic           NoMagic         Surprise        Realignment SecondRun   Magic                NoMagic         Surprise        Realignment Postrevelation  Magic           NoMagic         Surprise        Realignment
-        C42= repmat([ones(1,numMag)  zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)      ones(1,numMag)*(-1)  zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)  repmat([zeros(1,numMag) zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,3);
+        C42= repmat([ones(1,numMag)  zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)      ones(1,numMag)*(-1)  zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)  repmat([zeros(1,numMag) zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,numBlocks);
         %   FirstRun Magic           NoMagic         Surprise        Realignment SecondRun   Magic            NoMagic         Surprise        Realignment   ThirdRun  Magic                 NoMagic         Surprise        Realignment FourthRun   Magic           NoMagic         Surprise        Realignment
-        C43= repmat([zeros(1,numMag) zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)      ones(1,numMag)   zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)      ones(1,numMag)*(-1)   zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)      zeros(1,numMag) zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)],1,3);
+        C43= repmat([zeros(1,numMag) zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)      ones(1,numMag)   zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)      ones(1,numMag)*(-1)   zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)      zeros(1,numMag) zeros(1,numCon) zeros(1,numSur) zeros(1,numRaPara)],1,numBlocks);
         
         Contrasts = [C1; C2; C3; C5; C6; C7; C8; C9; C10; C11; C12; C13; C14; C15; C16; C17; C18; C19; C20;...
             C21; C22; C23; C24; C25; C26; C27; C28; C29; C30; C31; C32; C33; C34; C35; C36; C37; C38; C39; C40; C41; C42; C43];
