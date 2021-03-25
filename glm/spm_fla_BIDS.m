@@ -76,41 +76,42 @@ if ~isfolder(derivesDir)
     end
 end
 
-% read in the .mat file, that contains the information about the magic
-% moment
-fprintf('Please select the .mat file, that contains the information about the special moments.\n\n')
-videoInfoMatfileDir = uigetfile(pwd, 'Select the .mat file');
-
-% information about the videos. Important is only the framerate and thus
-% the time every frame was presented
-fps = 25;
-frameTime = 1/fps;
-
-load(videoInfoMatfileDir);
-
 % get the data from the preprocessing pipeline you want
 softwareName        = 'spm12';
 pipelineName        = 'spm12-preproc';
 % specify the name of the processing pipeline
 analysisPipeline    = 'spm12-fla';
 
+%% Get the information about the videos
+% read in the .mat file, that contains the information about the magic
+% moment
+fprintf('Please select the .mat file, that contains the information about the special moments.\n\n')
+videoInfoMatfileDir = uigetfile(pwd, 'Select the .mat file');
+if videoInfoMatfileDir == 0
+        error('No .mat file was selected --> I terminate the script')
+end
+load(videoInfoMatfileDir);
+
+% information about the videos. Important is only the framerate and thus
+% the time every frame was presented
+fps         = 25;
+frameTime   = 1/fps;
+
 %% Define what to do
-do.SpecifyDesign      = 1;
-do.loadlog            = 1; % load LOG files!
-do.estimate           = 1;
-do.DefContrasts       = 0;
+do.SpecifyDesign    = 1;
+do.loadlog          = 1; % load LOG files!
+do.estimate         = 1;
+do.DefContrasts     = 0;
 
-%% Settings
-settings.matprefix = '';
-DICOMprefix = 'sMag'; % input (['Please specify the prefix of your participant data in your SOURCE DATA.\n' ...
+%% Get name, location and number of sourcedata subjects
+DICOMprefix     = 'sMag'; % input (['Please specify the prefix of your participant data in your SOURCE DATA.\n' ...
 %'(like p for participant or s for subject. It has to be unique so that only subject folders are selected):\n'],'s');
-DICOMfolders = dir(fullfile(sourceDir, [DICOMprefix '*']));
-DICOMsubNames = {DICOMfolders(:).name};
-settings.preprocessing = ['^s6wauf' '.*nii']; % realigned, slice time corrected, normalized, 6mm-smoothed data
+DICOMfolders    = dir(fullfile(sourceDir, [DICOMprefix '*']));
+DICOMsubNames   = {DICOMfolders(:).name};
 
-dataDir = fullfile(derivesDir, softwareName, pipelineName,'6mm-smoothed-mnispace');
-folders = dir(fullfile(dataDir,'sub-*'));
-subNames = {folders(:).name};
+dataDir     = fullfile(derivesDir, softwareName, pipelineName,'6mm-smoothed-mnispace');
+folders     = dir(fullfile(dataDir,'sub-*'));
+subNames    = {folders(:).name};
 
 %% Get experimental design parameters
 fla.conditionNames  = {
@@ -122,35 +123,36 @@ fla.conditionNames  = {
     'Change1_Control'   ; 'Change2_Control';...
     'Surprise'};
 
-fla.nconditions = length(fla.conditionNames);
+% how many conditions we have (in total and per "type")
+fla.numConditions = length(fla.conditionNames);
 numMag          = 6;
 numCon          = 6;
 numSur          = 1;
+% how many blocks we had
 numBlocks       = 3;
 fla.realignmentParametersFlag  = 1;
 
 for s = 2%1:length(subNames)
-    %% Define where to store and the results and where to look for functional and anatomical data
-    smoothedDataDir   = fullfile(derivesDir, softwareName, pipelineName,'6mm-smoothed-mnispace',subNames{s},'func');
-    realignedDataDir  = fullfile(derivesDir, softwareName, pipelineName,'realigned',            subNames{s},'func');
-    psyphysicDataDir  = fullfile(derivesDir, 'PsychoPhysic',DICOMsubNames{s});
-    runs                = cellstr(spm_select('List', smoothedDataDir, '.nii')); %dir(fullfile(smoothed_data_dir,['s6wau' subNames{s} '_task-magic_run*']));
-    nruns               = length(runs); % Number of Runs
-    sourcedataRuns     = dir(fullfile(sourceDir,DICOMsubNames{s},'func','run*'));
+    %% Define where to look for functional MRI data and the logs that contain information about stimulus on/offsets
+    smoothedDataDir     = fullfile(derivesDir, softwareName, pipelineName,'6mm-smoothed-mnispace',subNames{s},'func');
+    realignedDataDir    = fullfile(derivesDir, softwareName, pipelineName,'realigned',            subNames{s},'func');
+    psyphysicDataDir    = fullfile(derivesDir, 'PsychoPhysic',DICOMsubNames{s});
+    runs                = cellstr(spm_select('List', smoothedDataDir, '.nii')); 
+    numRuns             = length(runs); 
+    sourcedataRuns      = dir(fullfile(sourceDir,DICOMsubNames{s},'func','run*'));
     %% load a dicom header that contains information needed for analysis
-    dicomDir   = fullfile(sourceDir,DICOMsubNames{s},'func',sourcedataRuns(1).name);
-    dicomFiles = dir(fullfile(dicomDir, '*.IMA'));
+    dicomDir    = fullfile(sourceDir,DICOMsubNames{s},'func',sourcedataRuns(1).name);
+    dicomFiles  = dir(fullfile(dicomDir, '*.IMA'));
     hdr         = spm_dicom_headers(fullfile(dicomDir,dicomFiles(1).name));
     
     %% Model specification of FLA
     if do.SpecifyDesign == 1 % Model specification
-        
-        %% DEFINE MODEL PARAMETERS GENERAL
-        
+        %% The name for the glm with respective directory
         analysisName    = 'WholeVideo';
         spm_mkdir(derivesDir, softwareName, analysisPipeline, analysisName, subNames{s});
         betaLoc        = fullfile(derivesDir, softwareName, analysisPipeline, analysisName, subNames{s});
         
+        %% DEFINE MODEL PARAMETERS GENERAL
         matlabbatch{1}.spm.stats.fmri_spec.dir              = {betaLoc};           % The directory, the SPM.mat and all betas are written
         matlabbatch{1}.spm.stats.fmri_spec.timing.units     = 'secs';               % 'secs' or 'scans' unit
         matlabbatch{1}.spm.stats.fmri_spec.timing.RT        = hdr{1}.RepetitionTime/1000;% TR
@@ -170,15 +172,16 @@ for s = 2%1:length(subNames)
         matlabbatch{1}.spm.stats.fmri_spec.mask             = {''};                 % Mask?
         matlabbatch{1}.spm.stats.fmri_spec.cvi              = 'AR(1)';
         
+        %% Get the realigment files
         AlignmentFiles = spm_select('FPList',realignedDataDir,'^rp_.*.txt');
         
         % Load .mat files that contain condition information, such as
         % condition names, onsets, offsets, etc.
         if do.loadlog == 1 % get the mat files
-            logMatfiles        = spm_select('FPList', psyphysicDataDir, 'log.mat'); % SELECT MAT FILES
+            logMatfiles = spm_select('FPList', psyphysicDataDir, 'log.mat'); % SELECT MAT FILES
         end
         
-        for r = 1:nruns % For each run
+        for r = 1:numRuns % For each run
             
             % Find functional files
             dirfiles    = spm_select('ExtFPList',smoothedDataDir, runs(r), Inf);
@@ -230,7 +233,7 @@ for s = 2%1:length(subNames)
         end
         
         
-        for r = 1:nruns % For each run
+        for r = 1:numRuns % For each run
             
             if do.loadlog == 1
                 
@@ -264,7 +267,7 @@ for s = 2%1:length(subNames)
             end
             
             % Condition names:
-            for cc = 1:fla.nconditions % for CurrentCondition
+            for cc = 1:fla.numConditions % for CurrentCondition
                 matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).name     = fla.conditionNames{cc};
                 matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).onset    = fla.trialOnset{cc};
                 matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).duration = fla.trialDuration{cc};
@@ -280,13 +283,14 @@ for s = 2%1:length(subNames)
         spm('defaults', 'FMRI');
         spm_jobman('run', matlabbatch);
         
+        %% The name for the glm with respective directory
         analysisName    = 'SpecialMoment';
         spm_mkdir(derivesDir, softwareName, analysisPipeline, analysisName, subNames{s});
-        betaLoc        = fullfile(derivesDir, softwareName, analysisPipeline, analysisName, subNames{s});
+        betaLoc         = fullfile(derivesDir, softwareName, analysisPipeline, analysisName, subNames{s});
         
-        matlabbatch{1}.spm.stats.fmri_spec.dir              = {betaLoc};           % The directory, the SPM.mat and all betas are written
+        matlabbatch{1}.spm.stats.fmri_spec.dir = {betaLoc};           % The directory, the SPM.mat and all betas are written
         
-        for r = 1:nruns % For each run
+        for r = 1:numRuns % For each run
             
             if do.loadlog == 1
                 
@@ -316,7 +320,7 @@ for s = 2%1:length(subNames)
                     % converted from DICOM into NIfTIs
                     SpecialMoment               = do.all_frames_of_effect(contains(do.ListOfVideos,VideoName));
                     SpecialMomentOnset          = SpecialMoment{1}*frameTime;
-                    fla.trialOnset{end+1}      = log.data.VideoStart(contains(log.data.Condition,fla.conditionNames(reg)))-log.data.VideoStart(1);
+                    fla.trialOnset{end+1}       = log.data.VideoStart(contains(log.data.Condition,fla.conditionNames(reg)))-log.data.VideoStart(1);
                     
                     % maybe remove the duration
                     fla.trialDuration{end+1}   = log.data.Rating_stimOn(contains(log.data.Condition,fla.conditionNames(reg)))...
@@ -329,7 +333,7 @@ for s = 2%1:length(subNames)
             end % End load mat files
             
             % Condition names:
-            for cc = 1:fla.nconditions % for CurrentCondition
+            for cc = 1:fla.numConditions % for CurrentCondition
                 matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).name     = fla.conditionNames{cc};
                 matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).onset    = fla.trialOnset{cc};
                 matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).duration = fla.trialDuration{cc};
@@ -504,3 +508,4 @@ for s = 2%1:length(subNames)
     
 end
 
+clear all
