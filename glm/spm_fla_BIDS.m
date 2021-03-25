@@ -10,19 +10,19 @@
 % Experimental design: The Experiment was divided into 3 blocks. Each block
 % consisted of 4 experimental runs. In each run subjects viewed 24 videos
 % (each video is considered a trial) of three different categories: Magic
-% Control and Surprise. 
+% Control and Surprise.
 % The videos in each block were associated with one object (Balls, Cards
 % and Sticks)
 % There were 6 Magic videos with 6 coresponding control videos and 3
 % surpise videos per block. 3 Different magic effects were used: Object
-% appearing, vanishing and color change. The magic and surprise videos were 
+% appearing, vanishing and color change. The magic and surprise videos were
 % presented twice, the control videos only once. (2*6 magic + 6 control + 2*3
 % surpsise = 24 videos). Half of all video presentations were flipped along
 % the y-axis and the order of videos was pseudorandomized in a way that the
-% same video was never presented in two consecutive trials. 
+% same video was never presented in two consecutive trials.
 % The videos were exactly 14 seconds long and followed by a 2 second
 % answering phase in which the subject was asked to rate how surprising the
-% video's content was. 
+% video's content was.
 % After the second run in each block the underlying methods behind each
 % magic trick was presented (during this period we did not measure fMR
 % data). Only when every trick was understood the following two runs were
@@ -38,66 +38,79 @@ tic; % start script.
 %% Define important details of your file structure and location
 % Set root directory
 fprintf(['Please select your project folder.'...
-    '(ideally it should contain a folder named "raw_data")\n\n'])
-root_dir    = uigetdir(homedir, 'Select Project Folder');
-if root_dir == 0
+    '(ideally it should contain a folder named "rawdata")\n\n'])
+rootDir    = '/Users/vpl/Documents/Master_Thesis/DATA/MRI'; % uigetdir(homedir, 'Select Project Folder');
+if rootDir == 0
     error('No folder was selected --> I terminate the script')
 end
 
-% Set source_data directory. This is only needed for slice time correction
-source_dir  = fullfile(root_dir,'source_data');
-if ~isfolder(source_dir)
-    fprintf(['It appears you do not have a "source_data" folder.\n'...
+% Set sourcedata directory. This is only needed for slice time correction
+sourceDir  = fullfile(rootDir,'sourcedata');
+if ~isfolder(sourceDir)
+    fprintf(['It appears you do not have a "sourcedata" folder.\n'...
         'Please select the folder that contains your DICOMS.'])
-    source_dir  = uigetdir(root_dir, 'Select DICOM folder');
-    if source_dir == 0
+    sourceDir  = uigetdir(rootDir, 'Select DICOM folder');
+    if sourceDir == 0
         error('No folder was selected --> I terminate the script')
     end
 end
 
-% Set raw_data directory.
-raw_dir     = fullfile(root_dir, 'raw_data');
-if ~isfolder(raw_dir)
-    fprintf(['It appears you do not have a "raw_data" folder.\n'...
+% Set rawdata directory.
+rawDir     = fullfile(rootDir, 'rawdata');
+if ~isfolder(rawDir)
+    fprintf(['It appears you do not have a "rawdata" folder.\n'...
         'Please select the folder that contains your unprocessed niftis.'])
-    raw_dir  = uigetdir(root_dir, 'Select unprocessed nifti folder');
-    if raw_dir == 0
+    rawDir  = uigetdir(rootDir, 'Select unprocessed nifti folder');
+    if rawDir == 0
         error('No folder was selected --> I terminate the script')
     end
 end
 
-derived_dir = fullfile (root_dir, 'derivative_data');
-if ~isfolder(derived_dir)
-    fprintf(['It appears you do not have a "derivative_data" folder.\n'...
+derivesDir = fullfile (rootDir, 'derivatives');
+if ~isfolder(derivesDir)
+    fprintf(['It appears you do not have a "derivatives" folder.\n'...
         'Please select the folder that contains your preprocessed niftis.'])
-    derived_dir  = uigetdir(root_dir, 'Select preprocessed nifti folder');
-    if derived_dir == 0
+    derivesDir  = uigetdir(rootDir, 'Select preprocessed nifti folder');
+    if derivesDir == 0
         error('No folder was selected --> I terminate the script')
     end
 end
+
+% read in the .mat file, that contains the information about the magic
+% moment
+fprintf('Please select the .mat file, that contains the information about the special moments.\n\n')
+videoInfoMatfileDir = uigetfile(pwd, 'Select the .mat file');
+
+% information about the videos. Important is only the framerate and thus
+% the time every frame was presented
+fps = 25;
+frameTime = 1/fps;
+
+load(videoInfoMatfileDir);
+
 % get the data from the preprocessing pipeline you want
+softwareName        = 'spm12';
 pipelineName        = 'spm12-preproc';
 % specify the name of the processing pipeline
 analysisPipeline    = 'spm12-fla';
-analysisName        = 'WholeVideo';
 
 %% Define what to do
 do.SpecifyDesign      = 1;
 do.loadlog            = 1; % load LOG files!
 do.estimate           = 1;
-do.DefContrasts       = 1;
+do.DefContrasts       = 0;
 
 %% Settings
-settings.matprefix = input (['Please specify the prefix of your participant data.\n' ...
-    '(like p for participant or s for subject. It has to be unique so that only subject folders are selected):\n'],'s');
+settings.matprefix = '';
+DICOMprefix = 'sMag'; % input (['Please specify the prefix of your participant data in your SOURCE DATA.\n' ...
+%'(like p for participant or s for subject. It has to be unique so that only subject folders are selected):\n'],'s');
+DICOMfolders = dir(fullfile(sourceDir, [DICOMprefix '*']));
+DICOMsubNames = {DICOMfolders(:).name};
 settings.preprocessing = ['^s6wauf' '.*nii']; % realigned, slice time corrected, normalized, 6mm-smoothed data
 
-data_dir = fullfile(derived_dir,pipelineName,'6smoothed');
-folders = dir(fullfile(data_dir,[settings.matprefix, '*']));
-subNames = {folders(:).name}; 
-% create a "first_level_analysis" folder
-spm_mkdir(fullfile(derived_dir,analysisPipeline), analysisName, subNames);
-
+dataDir = fullfile(derivesDir, softwareName, pipelineName,'6mm-smoothed-mnispace');
+folders = dir(fullfile(dataDir,'sub-*'));
+subNames = {folders(:).name};
 
 %% Get experimental design parameters
 fla.conditionNames  = {
@@ -114,27 +127,31 @@ numMag          = 6;
 numCon          = 6;
 numSur          = 1;
 numBlocks       = 3;
-fla.realignmentParameters_flag  = 1;
+fla.realignmentParametersFlag  = 1;
 
-for s = 1:length(subNames)
+for s = 2%1:length(subNames)
     %% Define where to store and the results and where to look for functional and anatomical data
-    beta_loc            = fullfile(derived_dir,analysisPipeline,analysisName,subNames{s});
-    smoothed_data_dir   = fullfile(derived_dir,pipelineName,'6smoothed',subNames{s},'func'); 
-    realigned_data_dir  = fullfile(derived_dir,pipelineName,'realigned',subNames{s},'func'); 
-    psyphysic_data_dir  = fullfile(derived_dir,'PsychoPhysic',subNames{s});
-    runs                = dir(fullfile(smoothed_data_dir,'run*'));
+    smoothedDataDir   = fullfile(derivesDir, softwareName, pipelineName,'6mm-smoothed-mnispace',subNames{s},'func');
+    realignedDataDir  = fullfile(derivesDir, softwareName, pipelineName,'realigned',            subNames{s},'func');
+    psyphysicDataDir  = fullfile(derivesDir, 'PsychoPhysic',DICOMsubNames{s});
+    runs                = cellstr(spm_select('List', smoothedDataDir, '.nii')); %dir(fullfile(smoothed_data_dir,['s6wau' subNames{s} '_task-magic_run*']));
     nruns               = length(runs); % Number of Runs
-    
+    sourcedataRuns     = dir(fullfile(sourceDir,DICOMsubNames{s},'func','run*'));
     %% load a dicom header that contains information needed for analysis
-    dicom_dir   = fullfile(source_dir,subNames{s},'func',runs(1).name);
-    dicom_files = dir(fullfile(dicom_dir, '*.IMA'));
-    hdr         = spm_dicom_headers(fullfile(dicom_dir,dicom_files(1).name));
+    dicomDir   = fullfile(sourceDir,DICOMsubNames{s},'func',sourcedataRuns(1).name);
+    dicomFiles = dir(fullfile(dicomDir, '*.IMA'));
+    hdr         = spm_dicom_headers(fullfile(dicomDir,dicomFiles(1).name));
     
     %% Model specification of FLA
     if do.SpecifyDesign == 1 % Model specification
         
         %% DEFINE MODEL PARAMETERS GENERAL
-        matlabbatch{1}.spm.stats.fmri_spec.dir              = {beta_loc};           % The directory, the SPM.mat and all betas are written
+        
+        analysisName    = 'WholeVideo';
+        spm_mkdir(derivesDir, softwareName, analysisPipeline, analysisName, subNames{s});
+        betaLoc        = fullfile(derivesDir, softwareName, analysisPipeline, analysisName, subNames{s});
+        
+        matlabbatch{1}.spm.stats.fmri_spec.dir              = {betaLoc};           % The directory, the SPM.mat and all betas are written
         matlabbatch{1}.spm.stats.fmri_spec.timing.units     = 'secs';               % 'secs' or 'scans' unit
         matlabbatch{1}.spm.stats.fmri_spec.timing.RT        = hdr{1}.RepetitionTime/1000;% TR
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -153,11 +170,18 @@ for s = 1:length(subNames)
         matlabbatch{1}.spm.stats.fmri_spec.mask             = {''};                 % Mask?
         matlabbatch{1}.spm.stats.fmri_spec.cvi              = 'AR(1)';
         
+        AlignmentFiles = spm_select('FPList',realignedDataDir,'^rp_.*.txt');
+        
+        % Load .mat files that contain condition information, such as
+        % condition names, onsets, offsets, etc.
+        if do.loadlog == 1 % get the mat files
+            logMatfiles        = spm_select('FPList', psyphysicDataDir, 'log.mat'); % SELECT MAT FILES
+        end
+        
         for r = 1:nruns % For each run
             
             % Find functional files
-            Path2Run    = fullfile(smoothed_data_dir,runs(r).name); 
-            dirfiles    = spm_select('FPList',Path2Run,settings.preprocessing); 
+            dirfiles    = spm_select('ExtFPList',smoothedDataDir, runs(r), Inf);
             
             % check if any files were selected. If not stop the script
             if strcmp(dirfiles,'')
@@ -170,11 +194,15 @@ for s = 1:length(subNames)
             
             matlabbatch{1}.spm.stats.fmri_spec.sess(r).scans = cellstr(dirfiles); %For every run scans are added to the matlabbatch
             
+            matlabbatch{1}.spm.stats.fmri_spec.sess(r).multi     = {''};
+            matlabbatch{1}.spm.stats.fmri_spec.sess(r).multi_reg = {''};
+            matlabbatch{1}.spm.stats.fmri_spec.sess(r).hpf       = 128;        % High-pass filter
+            
             % delete the variable 'dirfiles'
             clear dirfiles
             
             %......Include realignment parameters for each run
-            if fla.realignmentParameters_flag == 1
+            if fla.realignmentParametersFlag == 1
                 
                 fprintf('Adding realignment parameters to design matrix! \n');
                 
@@ -191,8 +219,7 @@ for s = 1:length(subNames)
                 numRaPara = length(raParamNames);
                 
                 % Load alignment parameters
-                AlignmentFile    = spm_select('List',fullfile(realigned_data_dir,runs(r).name),'^rp_.*.txt'); % get realignment parameters
-                raParamValues    = load(string(fullfile(realigned_data_dir,runs(r).name,AlignmentFile))); % load values
+                raParamValues    = load(AlignmentFiles(r,:)); % get realignment parameters
                 
                 % Add realignment parameters as regressors of no interest.
                 for P = 1:length (raParamNames)
@@ -202,27 +229,18 @@ for s = 1:length(subNames)
             end
         end
         
-        % Load .mat files that contain condition information, such as
-        % condition names, onsets, offsets, etc.
-        if do.loadlog == 1 % get the mat files
-            log_matfiles        = spm_select('FPList', psyphysic_data_dir, 'log.mat'); % SELECT MAT FILES
-        end
         
         for r = 1:nruns % For each run
-            
-            matlabbatch{1}.spm.stats.fmri_spec.sess(r).multi     = {''};
-            matlabbatch{1}.spm.stats.fmri_spec.sess(r).multi_reg = {''};
-            matlabbatch{1}.spm.stats.fmri_spec.sess(r).hpf       = 128;        % High-pass filter
             
             if do.loadlog == 1
                 
                 % IMPORTANT: this throws an error if there is a space in
-                % your path. 
-                load(strtrim(log_matfiles(r,:)));
+                % your path.
+                load(strtrim(logMatfiles(r,:)));
                 
                 % specify the trial onsets and durations.
                 % We iterate over our conditions specified above
-                fla.trial_onset={}; fla.trial_duration={};
+                fla.trialOnset={}; fla.trialDuration={};
                 for reg = 1:length (fla.conditionNames)
                     % from the matlab log file select the condition names.
                     % Look which index contains the current condition.
@@ -231,25 +249,25 @@ for s = 1:length(subNames)
                     % substracted from every trial onset to set t0 = 0
                     % We can ignore the dummy files since they were not
                     % converted from DICOM into NIfTIs
-                    fla.trial_onset{end+1}      = log.data.VideoStart(contains(log.data.Condition,fla.conditionNames(reg))) - log.data.VideoStart(1); 
+                    fla.trialOnset{end+1}      = log.data.VideoStart(contains(log.data.Condition,fla.conditionNames(reg))) - log.data.VideoStart(1);
                     
                     % The same procedure as above to get the indices, but
                     % for rating onset (which is stim offset minus stim
                     % onset
-                    fla.trial_duration{end+1}   = log.data.Rating_stimOn(contains(log.data.Condition,fla.conditionNames(reg)))...
+                    fla.trialDuration{end+1}   = log.data.Rating_stimOn(contains(log.data.Condition,fla.conditionNames(reg)))...
                         -log.data.VideoStart(contains(log.data.Condition,fla.conditionNames(reg)));
                 end
             else % don't get the matfile log files.
                 
-              %PLACE HOLDER
-              
+                %PLACE HOLDER
+                
             end
             
             % Condition names:
             for cc = 1:fla.nconditions % for CurrentCondition
                 matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).name     = fla.conditionNames{cc};
-                matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).onset    = fla.trial_onset{cc};
-                matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).duration = fla.trial_duration{cc};
+                matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).onset    = fla.trialOnset{cc};
+                matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).duration = fla.trialDuration{cc};
                 
                 % Equal for all conditions (Except trialDuration for button presses)
                 matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).pmod        = struct('name', {}, 'param', {}, 'poly', {});
@@ -257,24 +275,100 @@ for s = 1:length(subNames)
                 matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).orth        = 1;
             end
         end
-      
-    %% Specify design in SPM.mat
-    jobs = matlabbatch;
-    spm('defaults', 'FMRI');
-    spm_jobman('run', jobs);
-    clear jobs; clear matlabbatch;         
+        
+        %% Specify design in SPM.mat
+        spm('defaults', 'FMRI');
+        spm_jobman('run', matlabbatch);
+        
+        analysisName    = 'SpecialMoment';
+        spm_mkdir(derivesDir, softwareName, analysisPipeline, analysisName, subNames{s});
+        betaLoc        = fullfile(derivesDir, softwareName, analysisPipeline, analysisName, subNames{s});
+        
+        matlabbatch{1}.spm.stats.fmri_spec.dir              = {betaLoc};           % The directory, the SPM.mat and all betas are written
+        
+        for r = 1:nruns % For each run
+            
+            if do.loadlog == 1
+                
+                % IMPORTANT: this throws an error if there is a space in
+                % your path. 
+                load(strtrim(logMatfiles(r,:)));
+                
+                % specify the trial onsets and durations.
+                % We iterate over our conditions specified above
+                fla.trialOnset={}; fla.trialDuration={};
+                for reg = 1:length (fla.conditionNames)
+                    % from the matlab log file select the condition names.
+                    % Look which index contains the current condition.
+                    % get the video name so you can extract the Timepoint
+                    % of magic moment from the 'do' struct
+                    VideoNames                  = log.data.Condition(contains(log.data.Condition,fla.conditionNames(reg)));
+                    % The videoname may contain an '_F' for the flip
+                    % condition. Therefore we need to get the normal video
+                    % name
+                    if contains(VideoNames{1},'_F')
+                        VideoName=VideoNames{1};
+                        VideoName=VideoName(1:end-2);
+                    else
+                        VideoName=VideoNames{1};
+                    end
+                    % We can ignore the dummy files since they were not
+                    % converted from DICOM into NIfTIs
+                    SpecialMoment               = do.all_frames_of_effect(contains(do.ListOfVideos,VideoName));
+                    SpecialMomentOnset          = SpecialMoment{1}*frameTime;
+                    fla.trialOnset{end+1}      = log.data.VideoStart(contains(log.data.Condition,fla.conditionNames(reg)))-log.data.VideoStart(1);
+                    
+                    % maybe remove the duration
+                    fla.trialDuration{end+1}   = log.data.Rating_stimOn(contains(log.data.Condition,fla.conditionNames(reg)))...
+                        -fla.trialOnset{end};
+                end
+            else % don't get the matfile log files.
+                
+              %PLACE HOLDER
+              
+            end % End load mat files
+            
+            % Condition names:
+            for cc = 1:fla.nconditions % for CurrentCondition
+                matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).name     = fla.conditionNames{cc};
+                matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).onset    = fla.trialOnset{cc};
+                matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).duration = fla.trialDuration{cc};
+                
+                % Equal for all conditions (Except trialDuration for button presses)
+                matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).pmod        = struct('name', {}, 'param', {}, 'poly', {});
+                matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).tmod        = 0;
+                matlabbatch{1}.spm.stats.fmri_spec.sess(r).cond(cc).orth        = 1;
+                                                
+            end
+        end
+        
+        spm('defaults', 'FMRI');
+        spm_jobman('run', matlabbatch);
+        clear matlabbatch;
+        
     end % model specification
-          
+    
     %% Estimate design:
     if do.estimate == 1
-        matlabbatch{1}.spm.stats.fmri_est.spmmat           = {fullfile(beta_loc, 'SPM.mat')}; 
+        
+        analysisName    = 'WholeVideo';
+        betaLoc        = fullfile(derivesDir, softwareName, analysisPipeline, analysisName, subNames{s});
+        
+        matlabbatch{1}.spm.stats.fmri_est.spmmat           = {fullfile(betaLoc, 'SPM.mat')};
         matlabbatch{1}.spm.stats.fmri_est.write_residuals  = 0;
         matlabbatch{1}.spm.stats.fmri_est.method.Classical = 1;
         
-        jobs = matlabbatch;
         spm('defaults', 'FMRI');
-        spm_jobman('run', jobs);
-        clear jobs; clear matlabbatch;
+        spm_jobman('run', matlabbatch);
+        
+        analysisName    = 'SpecialMoment';
+        betaLoc        = fullfile(derivesDir, softwareName, analysisPipeline, analysisName, subNames{s});
+        
+        matlabbatch{1}.spm.stats.fmri_est.spmmat           = {fullfile(betaLoc, 'SPM.mat')};
+        
+        spm('defaults', 'FMRI');
+        spm_jobman('run', matlabbatch);
+        clear matlabbatch;
     end % end estimate
     
     
@@ -283,13 +377,13 @@ for s = 1:length(subNames)
     if do.DefContrasts == 1
         
         %% Define contrasts:
-        matlabbatch{1}.spm.stats.con.spmmat = {fullfile(beta_loc, 'SPM.mat')};
+        matlabbatch{1}.spm.stats.con.spmmat = {fullfile(betaLoc, 'SPM.mat')};
         matlabbatch{1}.spm.stats.con.delete = 1;
         
         % Names:
         ContrastNames = ...
             {'Magic > NoMagic Before'; ... %1
-            'NoMagic > Magic Before'; ...  %2 
+            'NoMagic > Magic Before'; ...  %2
             'Magic Before > Magic After';...%3
             'Magic After > Magic Before';...%4
             'Magic > Surprise Before';...  %5
@@ -297,7 +391,7 @@ for s = 1:length(subNames)
             'Surprise > NoMagic'; ... % 7
             'NoMagic > Surprise'; ... %8
             'Magic > NoMagic After'; ... %9
-            'NoMagic > Magic After'; ... %10 
+            'NoMagic > Magic After'; ... %10
             'Magic > Surprise After'; ... %11
             'Surpise > Magic After'; ...  %12
             'MagPre-ConPre vs MagPost-ConPost';... %13
@@ -336,7 +430,7 @@ for s = 1:length(subNames)
             'Magic PreVsPre (run 1vs2)';... %42
             'Magic PreVsPost (run 2vs3)'... %43
             };
-%       PreRevelation       Magic videos            NoMagic             Surprise           Realignment      PostRevelation  Magic videos         NoMagic             Surprise           Realignment
+        %       PreRevelation       Magic videos            NoMagic             Surprise           Realignment      PostRevelation  Magic videos         NoMagic             Surprise           Realignment
         C1 = repmat([repmat([ones(1,numMag)         ones(1,numCon)*(-1) zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,numBlocks);
         C2 = repmat([repmat([ones(1,numMag)*(-1)    ones(1,numCon)      zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([zeros(1,numMag)     zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,numBlocks);
         C3 = repmat([repmat([ones(1,numMag)         zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)*(-1) zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,numBlocks);
@@ -349,7 +443,7 @@ for s = 1:length(subNames)
         C10= repmat([repmat([zeros(1,numMag)        zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)*(-1) ones(1,numCon)      zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,numBlocks);
         C11= repmat([repmat([zeros(1,numMag)        zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)      zeros(1,numCon)     ones(1,numSur)*(-6) zeros(1,numRaPara)],1,2)],1,numBlocks);
         C12= repmat([repmat([zeros(1,numMag)        zeros(1,numCon)     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)*(-1) zeros(1,numCon)     ones(1,numSur)*6    zeros(1,numRaPara)],1,2)],1,numBlocks);
-%       Interaction Effects
+        %       Interaction Effects
         C13= repmat([repmat([ones(1,numMag)         ones(1,numCon)*(-1) zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)*(-1) ones(1,numCon)      zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,numBlocks);
         C14= repmat([repmat([ones(1,numMag)*(-1)    ones(1,numCon)      zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([ones(1,numMag)      ones(1,numCon)*(-1) zeros(1,numSur)     zeros(1,numRaPara)],1,2)],1,numBlocks);
         %                   AppearM VanishM ChangeM AppearC VanishC ChangeC Surprise            Realignment     PostRevelation  AppearM VanishM ChangeM AppearC VanishC ChangeC Surprise             Realignment
@@ -374,7 +468,7 @@ for s = 1:length(subNames)
         C33= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([1 1    0 0     0 0     0 0     0 0     0 0     ones(1,numSur)*(-2)  zeros(1,numRaPara)],1,2)],1,numBlocks);
         C34= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    1 1     0 0     0 0     0 0     0 0     ones(1,numSur)*(-2)  zeros(1,numRaPara)],1,2)],1,numBlocks);
         C35= repmat([repmat([0 0    0 0     0 0     0 0     0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     1 1     0 0     0 0     0 0     ones(1,numSur)*(-2)  zeros(1,numRaPara)],1,2)],1,numBlocks);
-%       Interaction Effects
+        %       Interaction Effects
         C36= repmat([repmat([1 1    0 0     0 0     -1 -1   0 0     0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([-1 -1  0 0     0 0     1 1     0 0     0 0     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,numBlocks);
         C37= repmat([repmat([0 0    1 1     0 0     0 0     -1 -1   0 0     zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    -1 -1   0 0     0 0     1 1     0 0     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,numBlocks);
         C38= repmat([repmat([0 0    0 0     1 1     0 0     0 0     -1 -1   zeros(1,numSur)     zeros(1,numRaPara)],1,2) repmat([0 0    0 0     -1 -1   0 0     0 0     1 1     zeros(1,numSur) zeros(1,numRaPara)],1,2)],1,numBlocks);
@@ -400,13 +494,13 @@ for s = 1:length(subNames)
             matlabbatch{1}.spm.stats.con.consess{C}.tcon.sessrep    = 'none'; %'replsc' if repeat for sessions
             matlabbatch{1}.spm.stats.con.consess{C}.tcon.convec     = Contrasts(C,:); % or weights?
         end
-
+        
         spm_jobman('run', matlabbatch);
         clear matlabbatch;
         
     end % define contrast
     
     toc;
-     
-end 
+    
+end
 
