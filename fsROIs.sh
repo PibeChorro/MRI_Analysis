@@ -16,13 +16,13 @@ export FREESURFER_HOME=/Users/vpl/Documents/freesurfer
 source $FREESURFER_HOME/SetUpFreeSurfer.sh 
 
 # The directory where FREESURFER should store all the processed images and steps in between -- empty if run for the first time !!!
-export SUBJECTS_DIR=$HOME/Documents/Master_Thesis/DATA/BIDS_playground/derivative_data/surfer
+export SUBJECTS_DIR=$HOME/Documents/Master_Thesis/DATA/BIDS_playground/derivatives/surfer
 
 # The directory where the unprocessed NiFTI images are -- important for the anatomical scan
-export raw_dir=$HOME/Documents/Master_Thesis/DATA/BIDS_playground/raw_data
+export raw_dir=$HOME/Documents/Master_Thesis/DATA/BIDS_playground/rawdata
 
 # The directory where the corregistered functional data are stored -- needed for the mean EPI image
-export corregistered_dir=$HOME/Documents/Master_Thesis/DATA/BIDS_playground/derivative_data/coregistered
+export corregistered_dir=$HOME/Documents/Master_Thesis/DATA/BIDS_playground/derivatives/spm12-preproc/coregistered
 
 # Those are the ROI names you just need to know them -- V1v=1, V1d=2 in the label images (... I guess ???)
 # (https://hub.docker.com/r/nben/occipital_atlas) "older version" of neuropythy)
@@ -40,7 +40,7 @@ export allROIs
 # change into raw_data direcotry to get all subjects and create a folder for each in the FREESURFER SUBJECTS_DIR
 cd $raw_dir
 
-for subject in sMag*
+for subject in sub-*
 do
 	mkdir $SUBJECTS_DIR/$subject
 	mkdir $SUBJECTS_DIR/$subject/mri
@@ -48,7 +48,7 @@ done
 
 cd $SUBJECTS_DIR
 
-for subject in sMag*
+for subject in sub-*
 do
 	# 1. Step
 	#mri_convert $raw_dir/$subject/anat/*.nii $SUBJECTS_DIR/$subject/mri/001.mgz
@@ -64,7 +64,7 @@ do
 	for i in {0..24}
 	do
 		# command: mri_cor2label
-		#1 the wang atlas created by neuropythy atlas (two wang atlases are created ending on mplbl.mgz and fplbl.mgz. The second does not work)
+		#1 the wang atlas created by neuropythy atlas (two wang atlases are created ending on mplbl.mgz (maximum probability) and fplbl.mgz (full probability). The second does not work)
 		#2 the number the ROI is assigned to in the atlas image
 		#3 output file name
 		#4 subject with information about the hemisphere and if it is inflated or not (???)
@@ -80,6 +80,11 @@ do
 					--id $(($i+1)) \
 					--l rh.wang15atlas.${roiname_array[$i]}.label \
 					--surf $subject rh inflated
+					
+		# MERGE THE LEFT AND RIGHT HEMISPHERE -- there is no good labelconversion in freesurfer when hemispheres are combined
+		#mri_mergelabels -i ${SUBJECTS_DIR}/${subject}/label/lh.wang15atlas.${roiname_array[$i]}.label \
+		#				-i ${SUBJECTS_DIR}/${subject}/label/rh.wang15atlas.${roiname_array[$i]}.label \
+		#				-o ${SUBJECTS_DIR}/${subject}/label/wang15atlas.${roiname_array[$i]}.label
 	done
 	
 	# 3c. Step
@@ -99,6 +104,11 @@ do
 		mri_mergelabels -i ${SUBJECTS_DIR}/${subject}/label/rh.wang15atlas.${rois_to_merge[${i}]}v.label \
 						-i ${SUBJECTS_DIR}/${subject}/label/rh.wang15atlas.${rois_to_merge[${i}]}d.label \
 						-o ${SUBJECTS_DIR}/${subject}/label/rh.wang15atlas.${rois_to_merge[${i}]}.label
+						
+		# MERGE THE CREATED LEFT AND RIGHT HEMISPHERES -- there is no good labelconversion in freesurfer when hemispheres are combined
+		#mri_mergelabels -i ${SUBJECTS_DIR}/${subject}/label/lh.wang15atlas.${rois_to_merge[${i}]}.label \
+		#				-i ${SUBJECTS_DIR}/${subject}/label/rh.wang15atlas.${rois_to_merge[${i}]}.label \
+		#				-o ${SUBJECTS_DIR}/${subject}/label/wang15atlas.${rois_to_merge[${i}]}.label
 	done
 	
 	
