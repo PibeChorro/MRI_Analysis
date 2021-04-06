@@ -45,47 +45,54 @@ close all;
 %% Define important details of your file structure and location
 % Set root directory
 fprintf(['Please select your project folder.'...
-    '(ideally it should contain a folder named "raw_data")'])
-root_dir    = uigetdir(homedir, 'Select Project Folder');
-if root_dir == 0
+    '(ideally it should contain a folder named "derivatives")\n\n'])
+rootDir    = uigetdir(homedir, 'Select Project Folder');
+if rootDir == 0
     error('No folder was selected --> I terminate the script')
 end
 
-% Set source_data directory. This is only needed for slice time correction
-source_dir  = fullfile(root_dir,'source_data');
-if ~isfolder(source_dir)
-    fprintf(['It appears you do not have a "source_data" folder.\n'...
-        'Please select the folder that contains your unprocessed niftis.'])
-    source_dir  = uigetdir(root_dir, 'Select DICOM folder');
-    if source_dir == 0
+% Set sourcedata directory. This is only needed for slice time correction
+sourceDir  = fullfile(rootDir,'sourcedata');
+if ~isfolder(sourceDir)
+    fprintf(['It appears you do not have a "sourcedata" folder.\n'...
+        'Please select the folder that contains your DICOMS.'])
+    sourceDir  = uigetdir(rootDir, 'Select DICOM folder');
+    if sourceDir == 0
         error('No folder was selected --> I terminate the script')
     end
 end
 
-% Set raw_data directory.
-raw_dir     = fullfile(root_dir, 'raw_data');
-if ~isfolder(raw_dir)
-    fprintf(['It appears you do not have a "raw_data" folder.\n'...
+% Set rawdata directory.
+rawDir     = fullfile(rootDir, 'rawdata');
+if ~isfolder(rawDir)
+    fprintf(['It appears you do not have a "rawdata" folder.\n'...
         'Please select the folder that contains your unprocessed niftis.'])
-    raw_dir  = uigetdir(root_dir, 'Select unprocessed nifti folder');
-    if raw_dir == 0
+    rawDir  = uigetdir(rootDir, 'Select unprocessed nifti folder');
+    if rawDir == 0
         error('No folder was selected --> I terminate the script')
     end
 end
 
-% Set derivative directory
-derived_dir = fullfile (root_dir, 'derivative_data');
-if ~isfolder(derived_dir)
-    fprintf(['It appears you do not have a "derivative_data" folder.\n'...
+derivesDir = fullfile (rootDir, 'derivatives');
+if ~isfolder(derivesDir)
+    fprintf(['It appears you do not have a "derivatives" folder.\n'...
         'Please select the folder that contains your preprocessed niftis.'])
-    derived_dir  = uigetdir(root_dir, 'Select preprocessed nifti folder');
-    if derived_dir == 0
+    derivesDir  = uigetdir(rootDir, 'Select preprocessed nifti folder');
+    if derivesDir == 0
         error('No folder was selected --> I terminate the script')
     end
 end
 
-% get the data from the preprocessing pipeline you want
+%% Data locations 
+softwareName        = 'spm12';  
+% get the data from the first level analysis pipeline you want
 pipelineName        = 'spm12-fla';
+conditionsAnalyzed  = 'AllVideoTypes';
+smoothKernelSize	= 9;   % in mm
+smoothKernelSpace   = 'mni';
+% combine above specifications for a well structured file hierarchy
+smoothnessDir       = [num2str(smoothKernelSize) 'mm-smoothed-' smoothKernelSpace 'space'];
+flaDir              = fullfile(derivesDir, softwareName, pipelineName, conditionsAnalyzed, smoothnessDir);
 wholeVideoGLMName   = 'WholeVideo';
 specialMomentGLMName= 'SpecialMoment';
 % specify the name of the processing pipeline
@@ -93,28 +100,28 @@ analysisPipeline    = 'spm12-sla';
 
 %% create a folder that contains the results of the second level analysis
 
-sec_level_dir = fullfile(derived_dir,analysisPipeline);
-if ~isfolder(derived_dir)
-    mkdir(sec_level_dir)
+secLevelDir = fullfile(derivesDir, softwareName, analysisPipeline, conditionsAnalyzed, smoothnessDir);
+if ~isfolder(secLevelDir)
+    mkdir(secLevelDir)
 end
 
 %% Define what to do
 do.SpecifyDesign      = 1;
 do.estimate           = 1;
 do.DefContrasts       = 1;
+% Which model to do
+do.wholeVideo       = 0;
+do.specialMoment    = 1;
 
 %% Settings
-settings.matprefix = input (['Please specify the prefix of your participant data.\n' ...
-    '(like p for participant or s for subject. It has to be unique so that only subject folders are selected):\n'],'s');
-
 % specify format for folder numeration
 formatSpec = '%04i';
 
-folders = dir(fullfile(derived_dir,pipelineName,wholeVideoGLMName,[settings.matprefix, '*']));
+folders = dir(fullfile(flaDir, wholeVideoGLMName,'sub-*'));
 subNames = {folders(:).name}; 
 
 % load in one SPM.mat file to read out the contrasts
-load(fullfile(derived_dir,pipelineName,wholeVideoGLMName,subNames{1},'SPM.mat'));
+load(fullfile(flaDir, wholeVideoGLMName,subNames{1},'SPM.mat'));
 nContrasts = length(SPM.xCon);
 
 %% The actual second level analysis
@@ -122,81 +129,81 @@ nContrasts = length(SPM.xCon);
 for C = 1:nContrasts 
 
     if do.SpecifyDesign
-    
-        dataDir = fullfile(derived_dir,pipelineName,wholeVideoGLMName);
-        contrasts_dirs = {};
+        %% specify general analysis parameter
+        matlabbatch{1}.spm.stats.factorial_design.cov                       = struct('c', {}, 'cname', {}, 'iCFI', {}, 'iCC', {});
+        matlabbatch{1}.spm.stats.factorial_design.multi_cov                 = struct('files', {}, 'iCFI', {}, 'iCC', {});
+        matlabbatch{1}.spm.stats.factorial_design.masking.tm.tm_none        = 1;
+        matlabbatch{1}.spm.stats.factorial_design.masking.im                = 1;
+        matlabbatch{1}.spm.stats.factorial_design.masking.em                = {''};
+        matlabbatch{1}.spm.stats.factorial_design.globalc.g_omit            = 1;
+        matlabbatch{1}.spm.stats.factorial_design.globalm.gmsca.gmsca_no    = 1;
+        matlabbatch{1}.spm.stats.factorial_design.globalm.glonorm           = 1;
+        
+        %% whole video analysis
+        if do.wholeVideo
+            dataDir         = fullfile(flaDir, wholeVideoGLMName);
+            contrastsDirs   = {};
 
-        for s = 1:length(subNames)
+            for s = 1:length(subNames)
 
-            current_dir = fullfile(dataDir,subNames{s});
-            contrasts_dirs{end+1} = fullfile(current_dir,['con_' num2str(C,formatSpec) '.nii']);
+                currentDir              = fullfile(dataDir,subNames{s});
+                contrastsDirs{end+1}    = fullfile(currentDir,['con_' num2str(C,formatSpec) '.nii']);
 
+            end
+
+            matlabbatch{1}.spm.stats.factorial_design.dir                       = {fullfile(secLevelDir,wholeVideoGLMName,SPM.xCon(C).name)};
+            matlabbatch{1}.spm.stats.factorial_design.des.t1.scans              = contrastsDirs';
+
+            spm('defaults', 'FMRI');
+            spm_jobman('run', matlabbatch);
         end
 
-        %% specify analysis parameter
-        matlabbatch{1}.spm.stats.factorial_design.dir = {fullfile(sec_level_dir,wholeVideoGLMName,SPM.xCon(C).name)};
-        matlabbatch{1}.spm.stats.factorial_design.des.t1.scans = contrasts_dirs';
-        matlabbatch{1}.spm.stats.factorial_design.cov = struct('c', {}, 'cname', {}, 'iCFI', {}, 'iCC', {});
-        matlabbatch{1}.spm.stats.factorial_design.multi_cov = struct('files', {}, 'iCFI', {}, 'iCC', {});
-        matlabbatch{1}.spm.stats.factorial_design.masking.tm.tm_none = 1;
-        matlabbatch{1}.spm.stats.factorial_design.masking.im = 1;
-        matlabbatch{1}.spm.stats.factorial_design.masking.em = {''};
-        matlabbatch{1}.spm.stats.factorial_design.globalc.g_omit = 1;
-        matlabbatch{1}.spm.stats.factorial_design.globalm.gmsca.gmsca_no = 1;
-        matlabbatch{1}.spm.stats.factorial_design.globalm.glonorm = 1;
+        %% special moment analysis
+        if do.specialMoment
+            dataDir         = fullfile(flaDir, specialMomentGLMName);
+            contrastsDirs   = {};
 
+            for s = 1:length(subNames)
 
-        jobs = matlabbatch;
-        spm('defaults', 'FMRI');
-        spm_jobman('run', jobs);
+                currentDir = fullfile(dataDir,subNames{s});
+                contrastsDirs{end+1} = fullfile(currentDir,['con_' num2str(C,formatSpec) '.nii']);
 
+            end
 
-        %% respecify the contrasts to include in the analysis
-        dataDir = fullfile(derived_dir,pipelineName,specialMomentGLMName);
-        contrasts_dirs = {};
+            matlabbatch{1}.spm.stats.factorial_design.dir           = {fullfile(secLevelDir,specialMomentGLMName,SPM.xCon(C).name)};
+            matlabbatch{1}.spm.stats.factorial_design.des.t1.scans  = contrastsDirs';
 
-        for s = 1:length(subNames)
-
-            current_dir = fullfile(dataDir,subNames{s});
-            contrasts_dirs{end+1} = fullfile(current_dir,['con_' num2str(C,formatSpec) '.nii']);
-
+            spm('defaults', 'FMRI');
+            spm_jobman('run', matlabbatch);
         end
-
-        %% respecify analysis parameter
-        matlabbatch{1}.spm.stats.factorial_design.dir           = {fullfile(sec_level_dir,specialMomentGLMName,SPM.xCon(C).name)};
-        matlabbatch{1}.spm.stats.factorial_design.des.t1.scans  = contrasts_dirs';
-
-        jobs = matlabbatch;
-        spm('defaults', 'FMRI');
-        spm_jobman('run', jobs);
-        clear jobs; clear matlabbatch;
+        clear matlabbatch;
     end % estimate Model
     
     if do.estimate
         
-        matlabbatch{1}.spm.stats.fmri_est.spmmat           = {fullfile(sec_level_dir,wholeVideoGLMName,SPM.xCon(C).name, 'SPM.mat')};
         matlabbatch{1}.spm.stats.fmri_est.write_residuals  = 0;
         matlabbatch{1}.spm.stats.fmri_est.method.Classical = 1;
         
-        jobs = matlabbatch;
-        spm('defaults', 'FMRI');
-        spm_jobman('run', jobs);        
-        clear jobs; clear matlabbatch;
+        %% whole video analysis
+        if do.wholeVideo
+            matlabbatch{1}.spm.stats.fmri_est.spmmat           = {fullfile(secLevelDir,wholeVideoGLMName,SPM.xCon(C).name, 'SPM.mat')};
+
+            spm('defaults', 'FMRI');
+            spm_jobman('run', matlabbatch); 
+        end
         
-        matlabbatch{1}.spm.stats.fmri_est.spmmat           = {fullfile(sec_level_dir,specialMomentGLMName,SPM.xCon(C).name, 'SPM.mat')};
-        matlabbatch{1}.spm.stats.fmri_est.write_residuals  = 0;
-        matlabbatch{1}.spm.stats.fmri_est.method.Classical = 1;
-        
-        jobs = matlabbatch;
-        spm('defaults', 'FMRI');
-        spm_jobman('run', jobs);        
-        clear jobs; clear matlabbatch;
+        %% special moment analysis
+        if do.specialMoment
+            matlabbatch{1}.spm.stats.fmri_est.spmmat           = {fullfile(secLevelDir,specialMomentGLMName,SPM.xCon(C).name, 'SPM.mat')};
+
+            spm('defaults', 'FMRI');
+            spm_jobman('run', matlabbatch);        
+        end
+        clear matlabbatch;
     end
     
     if do.DefContrasts
-        
         %% Define contrasts:
-        matlabbatch{1}.spm.stats.con.spmmat = {fullfile(sec_level_dir,wholeVideoGLMName,SPM.xCon(C).name, 'SPM.mat')};
         matlabbatch{1}.spm.stats.con.delete = 1;
         
         % Name:
@@ -207,10 +214,17 @@ for C = 1:nContrasts
         matlabbatch{1}.spm.stats.con.consess{1}.tcon.sessrep    = 'none'; %'replsc' if repeat for sessions
         matlabbatch{1}.spm.stats.con.consess{1}.tcon.convec     = Contrast; % or weights?
         
-        spm_jobman('run', matlabbatch);
+        %% whole video analysis
+        if do.wholeVideo
+            matlabbatch{1}.spm.stats.con.spmmat = {fullfile(secLevelDir,wholeVideoGLMName,SPM.xCon(C).name, 'SPM.mat')};
+            spm_jobman('run', matlabbatch);
+        end
         
-        matlabbatch{1}.spm.stats.con.spmmat = {fullfile(sec_level_dir,specialMomentGLMName,SPM.xCon(C).name, 'SPM.mat')};
-        spm_jobman('run', matlabbatch);
+        %% special moment analysis
+        if do.specialMoment
+            matlabbatch{1}.spm.stats.con.spmmat = {fullfile(secLevelDir,specialMomentGLMName,SPM.xCon(C).name, 'SPM.mat')};
+            spm_jobman('run', matlabbatch);
+        end
         
         clear matlabbatch;
     end
