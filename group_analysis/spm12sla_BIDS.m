@@ -87,12 +87,13 @@ end
 softwareName        = 'spm12';  
 % get the data from the first level analysis pipeline you want
 pipelineName        = 'spm12-fla';
-conditionsAnalyzed  = 'AllVideoTypes';
+brainMask           = 'WholeBrain';         % whole brain or ROI
+conditionsAnalyzed  = 'MagicEffects';
 smoothKernelSize	= 9;   % in mm
 smoothKernelSpace   = 'mni';
 % combine above specifications for a well structured file hierarchy
 smoothnessDir       = [num2str(smoothKernelSize) 'mm-smoothed-' smoothKernelSpace 'space'];
-flaDir              = fullfile(derivesDir, softwareName, pipelineName, conditionsAnalyzed, smoothnessDir);
+flaDir              = fullfile(derivesDir, softwareName, pipelineName, brainMask, conditionsAnalyzed, smoothnessDir);
 wholeVideoGLMName   = 'WholeVideo';
 specialMomentGLMName= 'SpecialMoment';
 % specify the name of the processing pipeline
@@ -100,7 +101,7 @@ analysisPipeline    = 'spm12-sla';
 
 %% create a folder that contains the results of the second level analysis
 
-secLevelDir = fullfile(derivesDir, softwareName, analysisPipeline, conditionsAnalyzed, smoothnessDir);
+secLevelDir = fullfile(derivesDir, softwareName, analysisPipeline, brainMask, conditionsAnalyzed, smoothnessDir);
 if ~isfolder(secLevelDir)
     mkdir(secLevelDir)
 end
@@ -110,7 +111,7 @@ do.SpecifyDesign      = 1;
 do.estimate           = 1;
 do.DefContrasts       = 1;
 % Which model to do
-do.wholeVideo       = 0;
+do.wholeVideo       = 1;
 do.specialMoment    = 1;
 
 %% Settings
