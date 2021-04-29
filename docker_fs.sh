@@ -79,4 +79,72 @@ do
 
 done
 
+for i in {0..2}
+do
+	# command: mri_mergelabels
+	# -i an imput image to merge with other input images
+	# -o output image
+	
+	# LEFT HEMISPHERE
+	docker exec --workdir $SUBJECTS_DIR $FS_CONTAINER_NAME \
+		mri_mergelabels -i ${SUB}/label/lh.wang15atlas.${rois_to_merge[${i}]}v.label \
+				-i ${SUB}/label/lh.wang15atlas.${rois_to_merge[${i}]}d.label \
+				-o ${SUB}/label/lh.wang15atlas.${rois_to_merge[${i}]}.label 
+					
+	# RIGHT HEMISPHERE
+	docker exec --workdir $SUBJECTS_DIR $FS_CONTAINER_NAME \
+		mri_mergelabels -i ${SUB}/label/rh.wang15atlas.${rois_to_merge[${i}]}v.label \
+				-i ${SUB}/label/rh.wang15atlas.${rois_to_merge[${i}]}d.label \
+				-o ${SUB}/label/rh.wang15atlas.${rois_to_merge[${i}]}.label
+done
+
+# get the meanEPI image
+meanNiFTI=$COREGISTERED_DIR/$SUB/func/meanu${SUB}_task-magic_bold.nii
+
+docker exec $FS_CONTAINER_NAME bbregister \
+	--mov $COREGISTERED_DIR/$SUB/func/mean*.nii \
+	--s $SUB \
+	--reg $SUBJECTS_DIR/$SUB/register_${SUB}.dat \
+	--t1
+
+docker exec $FS_CONTAINER_NAME mkdir $SUBJECTS_DIR/$SUB/ROIs
+
+# convert labels into ROIs
+for roi in "${allROIs[@]}"
+do
+	
+	# command: mri_label2vol 
+	#1: the label image as input
+	#2: the mean EPI NiFTI 
+	#3: the registration file from Step 4
+	#4: ???
+	#5: ???
+	#6: subject
+	#7: hemisphere
+	#8: output directory
+	
+	# LEFT HEMISPHERE
+	docker exec --workdir $SUBJECTS_DIR $FS_CONTAINER_NAME \
+		mri_label2vol --label $SUB/label/lh.wang15atlas.$roi.label \
+		--temp $meanNiFTI \
+		--reg $SUBJECTS_DIR/$SUB/register_${SUB}.dat \
+		--fillthresh 0 \
+		--proj frac 0 1 0.1 \
+		--subject $SUB \
+		--hemi lh \
+		--o $SUBJECTS_DIR/$SUB/ROIs/lh.wang15atlas.$roi.nii
+	
+	# RIGHT HEMISPHERE
+	docker exec --workdir $SUBJECTS_DIR $FS_CONTAINER_NAME \
+		mri_label2vol --label $SUB/label/rh.wang15atlas.$roi.label \
+		--temp $meanNiFTI \
+		--reg $SUBJECTS_DIR/$SUB/register_${SUB}.dat \
+		--fillthresh 0 \
+		--proj frac 0 1 0.1 \
+		--subject $SUB \
+		--hemi rh \
+		--o $SUBJECTS_DIR/$SUB/ROIs/rh.wang15atlas.$roi.nii
+done
+
+
 docker stop $FS_CONTAINER_NAME
