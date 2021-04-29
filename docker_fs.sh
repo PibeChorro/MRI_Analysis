@@ -5,7 +5,7 @@
 SUB=${1}
 PROJ_DIR=$HOME/Documents/Master_Thesis/DATA/MRI
 FS_CONTAINER_NAME=agbartels_freesurfer_${SUB}
-SUBJECTS_DIR=/home/derivatives/freesurfer
+SUBJECTS_DIR=/home/derivatives/freesurfer2
 COREGISTERED_DIR=/home/derivatives/spm12/spm12-preproc/coregistered
 # Those are the ROI names you just need to know them -- V1v=1, V1d=2 in the label images (... I guess ???)
 # (https://hub.docker.com/r/nben/occipital_atlas) "older version" of neuropythy)
@@ -42,16 +42,41 @@ freesurfer/freesurfer:7.1.1
 # run docker exec to send the container the actual commands you want to execute
 # some commands (like mkdir) can be given to 'docker exec', others however (like cd) need to be given to bash (docker exec bash -c 'bla bla bla').
 
-docker exec $FS_CONTAINER_NAME mkdir $SUBJECTS_DIR/${SUB}
+#docker exec $FS_CONTAINER_NAME mkdir $SUBJECTS_DIR/${SUB}
 # create a folder for your subject
-docker exec $FS_CONTAINER_NAME mkdir $SUBJECTS_DIR/${SUB}/mri
+#docker exec $FS_CONTAINER_NAME mkdir $SUBJECTS_DIR/${SUB}/mri
 # create a subfolder called 'mri'
-docker exec $FS_CONTAINER_NAME mri_convert /home/rawdata/${SUB}/anat/${SUB}_T1w.nii /home/derivatives/freesurfer/${SUB}/mri/001.mgz
+#docker exec $FS_CONTAINER_NAME mri_convert /home/rawdata/${SUB}/anat/${SUB}_T1w.nii /home/derivatives/freesurfer/${SUB}/mri/001.mgz
 # convert your raw anatomical nifti into an mgz file (which needs to be called 001.mgz)
-docker exec --workdir $SUBJECTS_DIR $FS_CONTAINER_NAME recon-all -autorecon-all -subjid ${SUB}
+#docker exec --workdir $SUBJECTS_DIR $FS_CONTAINER_NAME recon-all -autorecon-all -subjid ${SUB}
 # execute the recon-all command with the given subject
 
 # perform parcelation using noah bensons neuropythy 
 python -m neuropythy atlas --verbose $PROJ_DIR/derivatives/freesurfer2/${SUB}
+
+# iterate 25 times -- number of ROIs
+for i in {0..24}
+do
+	# command: mri_cor2label
+	#1 the wang atlas created by neuropythy atlas (two wang atlases are created ending on mplbl.mgz (maximum probability) and fplbl.mgz (full probability). The second does not work)
+	#2 the number the ROI is assigned to in the atlas image
+	#3 output file name
+	#4 subject with information about the hemisphere and if it is inflated or not (???)
+	
+	# LEFT HEMISPHERE
+	docker exec --workdir $SUBJECTS_DIR $FS_CONTAINER_NAME \
+	 	mri_cor2label --i $SUB/surf/lh.wang15_mplbl.mgz \
+				--id $(($i+1)) \
+	 			--l lh.wang15atlas.${roiname_array[$i]}.label \
+	 			--surf $SUB lh inflated
+ 				
+ 	# RIGHT HEMISPHERE
+	docker exec --workdir $SUBJECTS_DIR $FS_CONTAINER_NAME \
+		mri_cor2label --i $SUB/surf/rh.wang15_mplbl.mgz \
+				--id $(($i+1)) \
+				--l rh.wang15atlas.${roiname_array[$i]}.label \
+				--surf $SUB rh inflated
+
+done
 
 docker stop $FS_CONTAINER_NAME
