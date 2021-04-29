@@ -42,13 +42,13 @@ freesurfer/freesurfer:7.1.1
 # run docker exec to send the container the actual commands you want to execute
 # some commands (like mkdir) can be given to 'docker exec', others however (like cd) need to be given to bash (docker exec bash -c 'bla bla bla').
 
-#docker exec $FS_CONTAINER_NAME mkdir $SUBJECTS_DIR/${SUB}
+docker exec $FS_CONTAINER_NAME mkdir $SUBJECTS_DIR/${SUB}
 # create a folder for your subject
-#docker exec $FS_CONTAINER_NAME mkdir $SUBJECTS_DIR/${SUB}/mri
+docker exec $FS_CONTAINER_NAME mkdir $SUBJECTS_DIR/${SUB}/mri
 # create a subfolder called 'mri'
-#docker exec $FS_CONTAINER_NAME mri_convert /home/rawdata/${SUB}/anat/${SUB}_T1w.nii /home/derivatives/freesurfer/${SUB}/mri/001.mgz
+docker exec $FS_CONTAINER_NAME mri_convert /home/rawdata/${SUB}/anat/${SUB}_T1w.nii /home/derivatives/freesurfer/${SUB}/mri/001.mgz
 # convert your raw anatomical nifti into an mgz file (which needs to be called 001.mgz)
-#docker exec --workdir $SUBJECTS_DIR $FS_CONTAINER_NAME recon-all -autorecon-all -subjid ${SUB}
+docker exec --workdir $SUBJECTS_DIR $FS_CONTAINER_NAME recon-all -autorecon-all -subjid ${SUB}
 # execute the recon-all command with the given subject
 
 # perform parcelation using noah bensons neuropythy 
@@ -79,6 +79,7 @@ do
 
 done
 
+# Combine dorsal and ventral streams of V1, V2 and V3
 for i in {0..2}
 do
 	# command: mri_mergelabels
@@ -101,12 +102,19 @@ done
 # get the meanEPI image
 meanNiFTI=$COREGISTERED_DIR/$SUB/func/meanu${SUB}_task-magic_bold.nii
 
+# create a registration file
 docker exec $FS_CONTAINER_NAME bbregister \
 	--mov $COREGISTERED_DIR/$SUB/func/mean*.nii \
 	--s $SUB \
 	--reg $SUBJECTS_DIR/$SUB/register_${SUB}.dat \
 	--t1
+# bbregister: registration using a boundary-based cost function
+# --mov: template image
+# --s: subject id
+# --reg: output registration file 
+# --t1: contrast modality (t1, t2, bold or dti)
 
+#create folder for ROI nifti images
 docker exec $FS_CONTAINER_NAME mkdir $SUBJECTS_DIR/$SUB/ROIs
 
 # convert labels into ROIs
@@ -114,14 +122,14 @@ for roi in "${allROIs[@]}"
 do
 	
 	# command: mri_label2vol 
-	#1: the label image as input
-	#2: the mean EPI NiFTI 
-	#3: the registration file from Step 4
-	#4: ???
-	#5: ???
-	#6: subject
-	#7: hemisphere
-	#8: output directory
+	#--label: the label image as input
+	#--temp: the mean EPI NiFTI 
+	#--reg: the registration file from before
+	#fillthresh: ???
+	#--proj: ???
+	#--subject: subject
+	#--hemi: hemisphere
+	#--o: output directory
 	
 	# LEFT HEMISPHERE
 	docker exec --workdir $SUBJECTS_DIR $FS_CONTAINER_NAME \
