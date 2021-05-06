@@ -6,10 +6,9 @@
 
 # libraries to interact with the operating system 
 import os
-import sys
+from pathlib import Path
 import glob
 import numpy as np   # most important numerical calculations
-import scipy as sp
 # library for neuroimaging
 import nibabel as nib
 from sklearn.neighbors import KNeighborsClassifier
@@ -28,7 +27,8 @@ all_ROIs = ['V1', 'V2', 'V3', 'hV4',
         'IPS1' ,'IPS2', 'IPS3', 'IPS4','IPS5']
 
 # declare all path names
-surfer_dir = '/Users/vpl/Documents/Master_Thesis/DATA/MRI/derivatives/freesurfer/'     # the freesurfer directory              # 
+home = str(Path.home())
+surfer_dir = os.path.join (home, 'Documents/Master_Thesis/DATA/MRI/derivatives/freesurfer/')    # the freesurfer directory              # 
 sub = 'sub-01'
 ROI_dir = os.path.join(surfer_dir,sub,'ROIs')
 corrected_ROI_dir = os.path.join(surfer_dir,sub,'corrected_ROIs')
@@ -77,13 +77,18 @@ for roi0, ROI0 in enumerate (all_ROIs[:-1]):
         ROI1_matrix = ROI1_matrix>0
         print ('Number of Voxels in {}: {}'.format(ROI0, ROI0_matrix.sum()))
         print ('Number of Voxels in {}: {}'.format(ROI1, ROI1_matrix.sum()))
-        r0copy = np.copy(ROI0_matrix)
-        r1copy = np.copy(ROI1_matrix)
         
         # look for overlapping voxels
         overlap = np.bitwise_and(ROI0_matrix,ROI1_matrix)
         if overlap.sum() == 0:
             print('{} and {} do not have any overlapping voxels.\n Continue with the next ROI'.format(ROI0,ROI1))
+            # Create new clean ROI mask
+            # first convert to a form needed
+            ROI_mask0 = nib.Nifti1Image(ROI0_matrix.astype(float), R0_mask_nii.affine)
+            ROI_mask1 = nib.Nifti1Image(ROI1_matrix.astype(float), R1_mask_nii.affine)
+            # second, write to new location
+            nib.save(ROI_mask0, os.path.join(corrected_ROI_dir,ROI0 + '.nii'))
+            nib.save(ROI_mask1, os.path.join(corrected_ROI_dir,ROI1 + '.nii'))
             continue
             
         else:
@@ -128,9 +133,6 @@ for roi0, ROI0 in enumerate (all_ROIs[:-1]):
         
         overlap = np.bitwise_and(ROI0_matrix,ROI1_matrix)
         if overlap.sum() == 0:
-            new_overlap0 = np.bitwise_and(ROI0_matrix,r0copy)
-            new_overlap1 = np.bitwise_and(ROI1_matrix,r1copy)
-            print ('After correction: ROI0 - {} ; ROI1 - {}'.format(new_overlap0.sum(),new_overlap1.sum()))
             # Create new clean ROI mask
             # first convert to a form needed
             ROI_mask0 = nib.Nifti1Image(ROI0_matrix.astype(float), R0_mask_nii.affine)
