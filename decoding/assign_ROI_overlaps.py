@@ -1,3 +1,5 @@
+#!/gpfs01/bartels/user/vplikat/anaconda3/bin/python
+
 # Script to load in ROIs and test if they have overlapping voxels. If so, try to assign them to one ROI
 
 #############
@@ -6,6 +8,7 @@
 
 # libraries to interact with the operating system 
 import os
+import sys
 from pathlib import Path
 import glob
 import numpy as np   # most important numerical calculations
@@ -15,6 +18,8 @@ from sklearn.neighbors import KNeighborsClassifier
 
 # define NIfTI image shape
 NIfTI_shape = (96, 96, 62)
+
+sub = sys.argv[1]
 
 # define ROIs
 all_ROIs = ['V1', 'V2', 'V3', 'hV4', 
@@ -29,7 +34,7 @@ all_ROIs = ['V1', 'V2', 'V3', 'hV4',
 # declare all path names
 home = str(Path.home())
 surfer_dir = os.path.join (home, 'Documents/Master_Thesis/DATA/MRI/derivatives/freesurfer/')    # the freesurfer directory              # 
-sub = 'sub-01'
+
 ROI_dir = os.path.join(surfer_dir,sub,'ROIs')
 corrected_ROI_dir = os.path.join(surfer_dir,sub,'corrected_ROIs')
 if not os.path.exists(corrected_ROI_dir):
