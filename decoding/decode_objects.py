@@ -18,33 +18,65 @@ import nibabel as nib
 # machine learning algorithms and stuff
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.model_selection import PredefinedSplit, permutation_test_score
-# to check and optimize time performance
-import time
+# optimize time performance
+import multiprocessing
+import matplotlib.pyplot as plt
 
-t_start = time.time()
+if len(sys.argv)==1:
+    SUB = 'sub-01'
+else:
+    SUB = sys.argv[1]
+# minimum number processes you want to run in parallel
+MIN_NUM_CPU = 2
+# get the number of CPUs on the server
+NUM_CPU     = multiprocessing.cpu_count()
+# We do not want to steal too many resources. 
+# Number of parallel processes should be maximally number of CPU/2-4
+# Since one process takes a lot of CPU power and can thus block more than one (therefore divide by 2)
+# Maybe the calculation is run on another server, so leave some CPUs free (therefore minus 4)
+N_PROC      = max ([NUM_CPU//2-4,MIN_NUM_CPU])
+
+##################################################################################################################
+# No matter how many parallel processes we use, each process will consume more CPU, which results more cores used
+# We therefore want to specifically want to set the CPUs that are going to be used for our process
+##################################################################################################################
+# get the pid of our program
+
+PID = os.getpid()
+print("PID: %i" % PID)
+
+CPU_ARG = ''.join([str(ci)+',' for ci in list (range(N_PROC))])[:-1]
+CMD ='taskset -cp %s %i' % (CPU_ARG, PID)
+
+print('executing command: %s' %CMD)
+os.system(CMD)
+
+# Setting the niceness value of the process higher, lowers its priority and only uses CPU power if available
+os.nice(5)
 
 # variables for path selection and data access
 HOME            = str(Path.home())
-SUB             = 'sub-01'
 PROJ_DIR        = os.path.join(HOME, 'Documents/Master_Thesis/DATA/MRI')
 DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
-SMOOTHING_SIZE  = 9
+SMOOTHING_SIZE  = 2
 if SMOOTHING_SIZE > 0:
-    FLA_DIR     = os.path.join(DERIVATIVES_DIR,'spm12',
+    GLM_DATA_DIR    = str(SMOOTHING_SIZE)+'mm-smoothed-nativespace' 
+    FLA_DIR         = os.path.join(DERIVATIVES_DIR,'spm12',
                                'spm12-fla','WholeBrain',
-                               'EveryVideo',str(SMOOTHING_SIZE)+'mm-smoothed-mnispace',
+                               'EveryVideo',GLM_DATA_DIR,
                                'WholeVideo',SUB)
 else:
-    FLA_DIR     = os.path.join(DERIVATIVES_DIR,'spm12',
+    GLM_DATA_DIR    = 'nativespace' 
+    FLA_DIR         = os.path.join(DERIVATIVES_DIR,'spm12',
                                'spm12-fla','WholeBrain',
-                               'EveryVideo','nativespace',
+                               'EveryVideo',GLM_DATA_DIR,
                                'WholeVideo',SUB)
 FREESURFER_DIR  = os.path.join(DERIVATIVES_DIR, 'freesurfer')
 RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
-ROI_DIR         = os.path.join(FREESURFER_DIR,SUB,'corrected_ROIS')
+ROI_DIR         = os.path.join(FREESURFER_DIR,SUB,'corrected_ROIs')
 SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
 ANALYSIS        = 'ROI-analysis'
-RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', ANALYSIS, SUB)
+RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', ANALYSIS, GLM_DATA_DIR, SUB)
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
@@ -66,9 +98,13 @@ LABEL_NAMES = [
     'Stick'
 ]
 
+# empty lists that will be filled with the results to plot after calculation
+decode_accuracy = []
+decode_p_value = []
+
 # Optional arguments
 rng_seed = 0
-n_permutations = 100
+n_permutations = 1000
     
 print ('SUB: {}'.format(SUB))
 print ('surfer_dir:	 {}'.format(FREESURFER_DIR))
@@ -102,9 +138,9 @@ x       = [' '.join(re.findall(r"\((\d+)\)",string)) for string in label_df.Regr
 runs    = [int(s_filter.split()[0]) for s_filter in x]
 
 # add further data to DataFrame
-label_df['Runs']    = runs                   # In which run
-label_df['Chunks']  = (label_df.Runs-1)//2   # The chunks (needed for cross validation)
-label_df['Labels']  = np.nan                 # Labels
+label_df['Runs']    = runs                # In which run
+label_df['Chunks']  = label_df.Runs%2     # The chunks (needed for cross validation)
+label_df['Labels']  = np.nan              # Labels
 # Check for every entry in Regressors if it contains one of the label names. If so, assign the label name
 for l in LABEL_NAMES:
     label_df.Labels[label_df.Regressors.str.contains(l)] = l
@@ -158,15 +194,16 @@ for r, roi in enumerate(ROIS):
             cv=PredefinedSplit(chunks),
             n_permutations=n_permutations,
             random_state=rng_seed,
+            n_jobs=N_PROC,
             verbose=3)
         accuracy = res[0]
         null_distribution = res[1]
         p_value = res[2]
 
-    t_hrs_delta = (time.time() - t_start) / 3600.
+    decode_accuracy.append(accuracy-1/3)
+    decode_p_value.append(p_value)
 
     with h5py.File(output_dir, 'w') as f:
-        f.create_dataset('t_hrs_delta', data=t_hrs_delta)
         f.create_dataset('accuracy', data=accuracy)
         if n_permutations > 0:
             f.create_dataset('null_distribution', data=null_distribution)
@@ -174,3 +211,15 @@ for r, roi in enumerate(ROIS):
 
 del label_df
 del betas
+
+decode_accuracy = np.array(decode_accuracy)
+decode_p_value = np.array(decode_p_value)
+
+x = np.arange(len(decode_accuracy))
+ps = decode_p_value<0.05
+
+fig = plt.figure()
+plt.bar(x, decode_accuracy)
+plt.plot(x[ps],decode_accuracy[ps]+0.1,'*')
+plt.xticks(np.arange(len(decode_accuracy)),ROIS,rotation=45)
+fig.savefig(os.path.join(RESULTS_DIR,SUB+'.png'))
