@@ -1,15 +1,20 @@
 #!/gpfs01/bartels/user/vplikat/anaconda3/bin/python
 
-# libraries to interact with the operating system 
+#############
+# LIBRARIES #
+#############
+
+# interact with the operating system 
 import os
 import sys
 from pathlib import Path
 import glob
+# import/export data
 import h5py
-# libraries for data structuration and calculations
+# data structuration and calculations
 import pandas as pd  # to create data frames
 import numpy as np   # most important numerical calculations
-# to read in mat files
+# read in mat files
 import readmat
 # needed to extract the run number out of the parentesis of the string in the SPM.mat file
 import re
@@ -19,9 +24,17 @@ import nibabel as nib
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.model_selection import PredefinedSplit, permutation_test_score
 # optimize time performance
+import time
+from tqdm import tqdm
 import multiprocessing
+import psutil
+# plotting
 import matplotlib.pyplot as plt
 
+# get start time
+T_START = time.time()
+
+# set variable values
 if len(sys.argv)==1:
     SUB = 'sub-01'
 else:
@@ -30,11 +43,17 @@ else:
 MIN_NUM_CPU = 2
 # get the number of CPUs on the server
 NUM_CPU     = multiprocessing.cpu_count()
+# get the average cpu usage in the last second (in percent) for every cpu 
+cpu_usage   = psutil.cpu_percent(interval=10,percpu=True)
+# convert cpu_usage in np.array
+cpu_usage   = np.array(cpu_usage)
+# get available CPUs (take first element, since np.where returns tuple)
+available_cpus = np.where(cpu_usage<20)[0]
 # We do not want to steal too many resources. 
 # Number of parallel processes should be maximally number of CPU/2-4
 # Since one process takes a lot of CPU power and can thus block more than one (therefore divide by 2)
 # Maybe the calculation is run on another server, so leave some CPUs free (therefore minus 4)
-N_PROC      = max ([NUM_CPU//2-4,MIN_NUM_CPU])
+n_proc      = max ([len(available_cpus)-4,MIN_NUM_CPU])
 
 ##################################################################################################################
 # No matter how many parallel processes we use, each process will consume more CPU, which results more cores used
@@ -44,21 +63,25 @@ N_PROC      = max ([NUM_CPU//2-4,MIN_NUM_CPU])
 
 PID = os.getpid()
 print("PID: %i" % PID)
+if n_proc <= MIN_NUM_CPU:
+    cpu_to_use = np.argsort(cpu_usage)[:MIN_NUM_CPU]
+    cpu_arg = ''.join([str(ci)+',' for ci in cpu_to_use])[:-1]
+else:
+    cpu_arg = ''.join( [str(ci)+',' for ci in available_cpus[:n_proc]])[:-1]
 
-CPU_ARG = ''.join([str(ci)+',' for ci in list (range(N_PROC))])[:-1]
-CMD ='taskset -cp %s %i' % (CPU_ARG, PID)
+cmd ='taskset -cp %s %i' % (cpu_arg, PID)
 
-print('executing command: %s' %CMD)
-os.system(CMD)
+print('executing command: %s' %cmd)
+os.system(cmd)
 
 # Setting the niceness value of the process higher, lowers its priority and only uses CPU power if available
-os.nice(5)
+os.nice(0)
 
 # variables for path selection and data access
 HOME            = str(Path.home())
 PROJ_DIR        = os.path.join(HOME, 'Documents/Master_Thesis/DATA/MRI')
 DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
-SMOOTHING_SIZE  = 2
+SMOOTHING_SIZE  = 0
 if SMOOTHING_SIZE > 0:
     GLM_DATA_DIR    = str(SMOOTHING_SIZE)+'mm-smoothed-nativespace' 
     FLA_DIR         = os.path.join(DERIVATIVES_DIR,'spm12',
@@ -151,7 +174,7 @@ regressors_of_interest = [True if any(i in n for i in LABEL_NAMES) else False fo
 label_df = label_df.iloc[regressors_of_interest]
 
 # inner loop - iterating over mask (=ROIs)
-for r, roi in enumerate(ROIS):
+for r, roi in tqdm(enumerate(ROIS)):
     output_dir = os.path.join(RESULTS_DIR,roi)   # where to store the results
     #if not os.path.isdir(output_dir):
     #    os.mkdir(output_dir)
@@ -194,7 +217,7 @@ for r, roi in enumerate(ROIS):
             cv=PredefinedSplit(chunks),
             n_permutations=n_permutations,
             random_state=rng_seed,
-            n_jobs=N_PROC,
+            n_jobs=n_proc,
             verbose=3)
         accuracy = res[0]
         null_distribution = res[1]
@@ -208,6 +231,27 @@ for r, roi in enumerate(ROIS):
         if n_permutations > 0:
             f.create_dataset('null_distribution', data=null_distribution)
             f.create_dataset('p_value', data=p_value)
+            
+    # let the programm 'sleep' for some time so cpu_usage is calculated correctly
+    time.sleep(30)
+    # get the average cpu usage in the last second (in percent) for every cpu 
+    cpu_usage   = psutil.cpu_percent(interval=10,percpu=True)
+    # convert cpu_usage in np.array
+    cpu_usage   = np.array(cpu_usage)
+    # get available CPUs (take first element, since np.where returns tuple)
+    available_cpus = np.where(cpu_usage<20)[0]
+    n_proc      = max ([len(available_cpus)//2-4,MIN_NUM_CPU])
+    
+    if n_proc <= MIN_NUM_CPU:
+        cpu_to_use = np.argsort(cpu_usage)[:MIN_NUM_CPU]
+        cpu_arg = ''.join([str(ci)+',' for ci in cpu_to_use])[:-1]
+    else:
+        cpu_arg = ''.join( [str(ci)+',' for ci in available_cpus[:n_proc]])[:-1]
+    
+    cmd ='taskset -cp %s %i' % (cpu_arg, PID)
+    
+    print('executing command: %s' %cmd)
+    os.system(cmd)
 
 del label_df
 del betas
@@ -223,3 +267,6 @@ plt.bar(x, decode_accuracy)
 plt.plot(x[ps],decode_accuracy[ps]+0.1,'*')
 plt.xticks(np.arange(len(decode_accuracy)),ROIS,rotation=45)
 fig.savefig(os.path.join(RESULTS_DIR,SUB+'.png'))
+
+# print time the whole processe took
+print ((T_START - time.time())/3600)
