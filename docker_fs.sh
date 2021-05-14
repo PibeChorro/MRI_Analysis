@@ -5,7 +5,7 @@
 SUB=${1}
 PROJ_DIR=$HOME/Documents/Master_Thesis/DATA/MRI
 FS_CONTAINER_NAME=agbartels_freesurfer_${SUB}
-SUBJECTS_DIR=/home/derivatives/freesurfer2
+SUBJECTS_DIR=/home/derivatives/freesurfer
 COREGISTERED_DIR=/home/derivatives/spm12/spm12-preproc/coregistered
 # Those are the ROI names you just need to know them -- V1v=1, V1d=2 in the label images (... I guess ???)
 # (https://hub.docker.com/r/nben/occipital_atlas) "older version" of neuropythy)
@@ -52,7 +52,7 @@ docker exec --workdir $SUBJECTS_DIR $FS_CONTAINER_NAME recon-all -autorecon-all 
 # execute the recon-all command with the given subject
 
 # perform parcelation using noah bensons neuropythy 
-python -m neuropythy atlas --verbose $PROJ_DIR/derivatives/freesurfer2/${SUB}
+python -m neuropythy atlas --verbose $PROJ_DIR/derivatives/freesurfer/${SUB}
 
 # iterate 25 times -- number of ROIs
 for i in {0..24}
