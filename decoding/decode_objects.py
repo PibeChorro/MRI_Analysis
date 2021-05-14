@@ -6,7 +6,7 @@
 
 # interact with the operating system 
 import os
-import sys
+import argparse
 from pathlib import Path
 import glob
 # import/export data
@@ -22,66 +22,49 @@ import re
 import nibabel as nib
 # machine learning algorithms and stuff
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+from sklearn.svm import SVC
 from sklearn.model_selection import PredefinedSplit, permutation_test_score
 # optimize time performance
 import time
 from tqdm import tqdm
-import multiprocessing
-import psutil
 # plotting
 import matplotlib.pyplot as plt
 
 # get start time
 T_START = time.time()
 
-# set variable values
-if len(sys.argv)==1:
-    SUB = 'sub-01'
-else:
-    SUB = sys.argv[1]
-# minimum number processes you want to run in parallel
-MIN_NUM_CPU = 2
-# get the number of CPUs on the server
-NUM_CPU     = multiprocessing.cpu_count()
-# get the average cpu usage in the last second (in percent) for every cpu 
-cpu_usage   = psutil.cpu_percent(interval=10,percpu=True)
-# convert cpu_usage in np.array
-cpu_usage   = np.array(cpu_usage)
-# get available CPUs (take first element, since np.where returns tuple)
-available_cpus = np.where(cpu_usage<20)[0]
-# We do not want to steal too many resources. 
-# Number of parallel processes should be maximally number of CPU/2-4
-# Since one process takes a lot of CPU power and can thus block more than one (therefore divide by 2)
-# Maybe the calculation is run on another server, so leave some CPUs free (therefore minus 4)
-n_proc      = max ([len(available_cpus)-4,MIN_NUM_CPU])
+################################
+# Command line input arguments #
+################################
 
-##################################################################################################################
-# No matter how many parallel processes we use, each process will consume more CPU, which results more cores used
-# We therefore want to specifically want to set the CPUs that are going to be used for our process
-##################################################################################################################
-# get the pid of our program
+# create a parser object which handles the input variables
+parser = argparse.ArgumentParser()
 
-PID = os.getpid()
-print("PID: %i" % PID)
-if n_proc <= MIN_NUM_CPU:
-    cpu_to_use = np.argsort(cpu_usage)[:MIN_NUM_CPU]
-    cpu_arg = ''.join([str(ci)+',' for ci in cpu_to_use])[:-1]
-else:
-    cpu_arg = ''.join( [str(ci)+',' for ci in available_cpus[:n_proc]])[:-1]
-
-cmd ='taskset -cp %s %i' % (cpu_arg, PID)
-
-print('executing command: %s' %cmd)
-os.system(cmd)
-
-# Setting the niceness value of the process higher, lowers its priority and only uses CPU power if available
-os.nice(0)
+# add all the input arguments
+parser.add_argument("--sub", "-s",default='sub-01')         # subject
+parser.add_argument("--kernels", "-k",default=1,type=int)   # how many processes should be run in parallel
+parser.add_argument("--smooth", default=0,type=int)         # what data should be used
+parser.add_argument("--algorythm", "-a", default='LDA')
+# parse the arguments to a parse-list(???)
+ARGS = parser.parse_args()
+# assign values 
+SUB = ARGS.sub
+N_PROC = ARGS.kernels
+SMOOTHING_SIZE  = ARGS.smooth
+DECODER = ARGS.algorythm
+if DECODER =='LDA':
+    my_decoder          = LDA(solver='lsqr', shrinkage='auto')
+    decoder_parameters  = ''
+elif DECODER == 'SVM':
+    SVM_C = 0.0001
+    decoder_parameters  = 'C_{}'.format(SVM_C)
+    my_decoder          = SVC(kernel='linear', C=SVM_C)
+        
 
 # variables for path selection and data access
 HOME            = str(Path.home())
 PROJ_DIR        = os.path.join(HOME, 'Documents/Master_Thesis/DATA/MRI')
 DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
-SMOOTHING_SIZE  = 0
 if SMOOTHING_SIZE > 0:
     GLM_DATA_DIR    = str(SMOOTHING_SIZE)+'mm-smoothed-nativespace' 
     FLA_DIR         = os.path.join(DERIVATIVES_DIR,'spm12',
@@ -99,7 +82,7 @@ RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 ROI_DIR         = os.path.join(FREESURFER_DIR,SUB,'corrected_ROIs')
 SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
 ANALYSIS        = 'ROI-analysis'
-RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', ANALYSIS, GLM_DATA_DIR, SUB)
+RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', ANALYSIS, DECODER, decoder_parameters, GLM_DATA_DIR, SUB)
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
@@ -113,7 +96,7 @@ ROIS = [
         'FEF', 'SPL1',
         'PHC1', 'PHC2',
         'IPS1' ,'IPS2', 'IPS3', 'IPS4','IPS5'
-     ]
+      ]
 
 LABEL_NAMES = [
     'Ball',
@@ -210,14 +193,14 @@ for r, roi in tqdm(enumerate(ROIS)):
     chunks = np.asarray(label_df.Chunks)
     if n_permutations > 0:
         res = permutation_test_score(
-            LDA(solver='lsqr', shrinkage='auto'),
+            my_decoder,
             betas,
             targets,
             groups=chunks,
             cv=PredefinedSplit(chunks),
             n_permutations=n_permutations,
             random_state=rng_seed,
-            n_jobs=n_proc,
+            n_jobs=N_PROC,
             verbose=3)
         accuracy = res[0]
         null_distribution = res[1]
@@ -234,25 +217,7 @@ for r, roi in tqdm(enumerate(ROIS)):
             
     # let the programm 'sleep' for some time so cpu_usage is calculated correctly
     time.sleep(30)
-    # get the average cpu usage in the last second (in percent) for every cpu 
-    cpu_usage   = psutil.cpu_percent(interval=10,percpu=True)
-    # convert cpu_usage in np.array
-    cpu_usage   = np.array(cpu_usage)
-    # get available CPUs (take first element, since np.where returns tuple)
-    available_cpus = np.where(cpu_usage<20)[0]
-    n_proc      = max ([len(available_cpus)//2-4,MIN_NUM_CPU])
     
-    if n_proc <= MIN_NUM_CPU:
-        cpu_to_use = np.argsort(cpu_usage)[:MIN_NUM_CPU]
-        cpu_arg = ''.join([str(ci)+',' for ci in cpu_to_use])[:-1]
-    else:
-        cpu_arg = ''.join( [str(ci)+',' for ci in available_cpus[:n_proc]])[:-1]
-    
-    cmd ='taskset -cp %s %i' % (cpu_arg, PID)
-    
-    print('executing command: %s' %cmd)
-    os.system(cmd)
-
 del label_df
 del betas
 
@@ -269,4 +234,4 @@ plt.xticks(np.arange(len(decode_accuracy)),ROIS,rotation=45)
 fig.savefig(os.path.join(RESULTS_DIR,SUB+'.png'))
 
 # print time the whole processe took
-print ((T_START - time.time())/3600)
+print ((time.time() - T_START)/3600)
