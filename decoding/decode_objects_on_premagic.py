@@ -66,16 +66,16 @@ if DECODER =='LDA':
         'cutoff_'+str(CUTOFF),
         'feat_trans_'+FEAT_TRANS)
 elif DECODER == 'SVM':
-    SVM_C = 0.0001
+    SVM_C = 1
     decoder_parameters  = os.path.join(
         'scale_'+SCALE,
         'cutoff_'+str(CUTOFF),
         'feat_trans_'+FEAT_TRANS,
         'C_'+str(SVM_C))
     if FEAT_TRANS == 'PCA':
-        my_decoder          = SVC(kernel='linear', C=SVM_C)
-    else: 
         my_decoder          = SVC(kernel='rbf', C=SVM_C)
+    else: 
+        my_decoder          = SVC(kernel='linear', C=SVM_C)
 # make LDA the default in case something completely different was given
 else:
     my_decoder          = LDA(solver='lsqr', shrinkage='auto')
@@ -106,7 +106,7 @@ RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 ROI_DIR         = os.path.join(FREESURFER_DIR,SUB,'corrected_ROIs')
 SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
 ANALYSIS        = 'ROI-analysis'
-RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', ANALYSIS, DECODER, GLM_DATA_DIR, decoder_parameters, SUB)
+RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding_objects_on_premagic', ANALYSIS, DECODER, GLM_DATA_DIR, decoder_parameters, SUB)
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
@@ -168,17 +168,19 @@ x       = [' '.join(re.findall(r"\((\d+)\)",string)) for string in label_df.Regr
 runs    = [int(s_filter.split()[0]) for s_filter in x]
 
 # add further data to DataFrame
-label_df['Runs']    = runs                # In which run
-label_df['Chunks']  = label_df.Runs%2     # The chunks (needed for cross validation)
-label_df['Labels']  = np.nan              # Labels
+label_df['Runs']    = runs                  # In which run
+label_df['Chunks']  = (label_df.Runs)%2     # The chunks (needed for cross validation)
+label_df['Labels']  = np.nan                # Labels
 # Check for every entry in Regressors if it contains one of the label names. If so, assign the label name
 for l in LABEL_NAMES:
     label_df.Labels[label_df.Regressors.str.contains(l)] = l
 
-# again a complex process to throw out regressors of no interest (like realignment)
-regressors_of_interest = [True if any(i in n for i in LABEL_NAMES) else False for n in SPM_REGRESSORS]
+# again a complex list comprehension to only keep magic videos
+regressors_of_interest  = [any(i in n for i in LABEL_NAMES) & ('Magic' in n) for n in SPM_REGRESSORS]
+#runs_of_interest        = [1,2,5,6,9,10] # only pre revelation videos
 # throw out all rows of regressors of no interest
 label_df = label_df.iloc[regressors_of_interest]
+#label_df = label_df[label_df.Runs.isin(runs_of_interest)]
 
 betas = []                                              # empty list to store data arrays in
 for b, beta in enumerate(label_df.BetaNames):
@@ -264,6 +266,7 @@ for r, roi in tqdm(enumerate(ROIS)):
             f.create_dataset('null_distribution', data=null_distribution)
             f.create_dataset('p_value', data=p_value)
             
+    
     # let the programm 'sleep' for some time so cpu_usage is calculated correctly
     time.sleep(5)
     
@@ -279,7 +282,7 @@ ps = decode_p_value<0.05
 fig = plt.figure()
 plt.bar(x, decode_accuracy)
 plt.plot(x[ps],decode_accuracy[ps]+0.1,'*')
-plt.xticks(np.arange(len(decode_accuracy)),ROIS[:len(decode_accuracy)],rotation=45)
+plt.xticks(np.arange(len(ROIS)),ROIS,rotation=45)
 fig.savefig(os.path.join(RESULTS_DIR,SUB+'.png'))
 
 # print time the whole processe took

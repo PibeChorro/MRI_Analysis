@@ -66,16 +66,13 @@ if DECODER =='LDA':
         'cutoff_'+str(CUTOFF),
         'feat_trans_'+FEAT_TRANS)
 elif DECODER == 'SVM':
-    SVM_C = 0.0001
+    SVM_C = 1
     decoder_parameters  = os.path.join(
         'scale_'+SCALE,
         'cutoff_'+str(CUTOFF),
         'feat_trans_'+FEAT_TRANS,
         'C_'+str(SVM_C))
-    if FEAT_TRANS == 'PCA':
-        my_decoder          = SVC(kernel='linear', C=SVM_C)
-    else: 
-        my_decoder          = SVC(kernel='rbf', C=SVM_C)
+    my_decoder          = SVC(kernel='linear', C=SVM_C)
 # make LDA the default in case something completely different was given
 else:
     my_decoder          = LDA(solver='lsqr', shrinkage='auto')
@@ -123,9 +120,9 @@ ROIS = [
       ]
 
 LABEL_NAMES = [
-    'Ball',
-    'Card',
-    'Stick'
+    'Magic_Appear',
+    'Magic_Change',
+    'Magic_Vanish'
 ]
 
 # empty lists that will be filled with the results to plot after calculation
@@ -227,11 +224,9 @@ for r, roi in tqdm(enumerate(ROIS)):
         ROI_data = ROI_data - ROI_data.mean(axis=0)
         
     if FEAT_TRANS == 'PCA':
-        n_components = min([min(ROI_data.shape),100])
+        n_components = min (ROI_data.shape)
         my_PCA = PCA(n_components=n_components)
-        my_PCA.fit(ROI_data)
-        ROI_data = my_PCA.transform(ROI_data)
-        ROI_data = ROI_data[:,my_PCA.explained_variance_ratio_>0.01]
+        ROI_data = my_PCA.fit_transform(ROI_data)
     
     # set outliers to CUTOFF value
     ROI_data[ROI_data>CUTOFF]   = CUTOFF
