@@ -106,7 +106,7 @@ RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 ROI_DIR         = os.path.join(FREESURFER_DIR,SUB,'corrected_ROIs')
 SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
 ANALYSIS        = 'ROI-analysis'
-RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding_objects_on_premagic', ANALYSIS, DECODER, GLM_DATA_DIR, decoder_parameters, SUB)
+RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding_debug', ANALYSIS, DECODER, GLM_DATA_DIR, decoder_parameters, SUB)
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
@@ -130,11 +130,11 @@ LABEL_NAMES = [
 
 # empty lists that will be filled with the results to plot after calculation
 decode_accuracy = []
-decode_p_value = []
+decode_p_value  = []
 
 # Optional arguments
 rng_seed = 0
-n_permutations = 1000
+n_permutations = 100
     
 print ('SUB: {}'.format(SUB))
 print ('surfer_dir:	 {}'.format(FREESURFER_DIR))
@@ -177,24 +177,23 @@ for l in LABEL_NAMES:
 
 # again a complex list comprehension to only keep magic videos
 regressors_of_interest  = [any(i in n for i in LABEL_NAMES) & ('Magic' in n) for n in SPM_REGRESSORS]
-#runs_of_interest        = [1,2,5,6,9,10] # only pre revelation videos
+runs_of_interest        = [1,2,5,6,9,10] # only pre revelation videos
 # throw out all rows of regressors of no interest
 label_df = label_df.iloc[regressors_of_interest]
-#label_df = label_df[label_df.Runs.isin(runs_of_interest)]
+label_df = label_df[label_df.Runs.isin(runs_of_interest)]
 
 betas = []                                              # empty list to store data arrays in
 for b, beta in enumerate(label_df.BetaNames):
-    beta_nii = nib.load(os.path.join(FLA_DIR,beta)) # read in beta NIfTI image
-    beta_data = beta_nii.get_fdata()                    # get data from NIfTI image
-    beta_data = beta_data.flatten()                     # convert into one-dimensional array
-    #beta_data = beta_data[ROI] 
-    #beta_data = beta_data[~np.isnan(beta_data)] 
+    beta_nii    = nib.load(os.path.join(FLA_DIR,beta))  # read in beta NIfTI image
+    beta_data   = beta_nii.get_fdata()                  # get data from NIfTI image
+    beta_nii.uncache()                                  # remove beta image from memory
+    beta_data   = beta_data.flatten()                   # convert into one-dimensional array
     betas.append(beta_data)                             # append array on betas list
 betas = np.array(betas)
 
 # inner loop - iterating over mask (=ROIs)
 for r, roi in tqdm(enumerate(ROIS)):
-    output_dir = os.path.join(RESULTS_DIR,roi)   # where to store the results
+    output_dir = os.path.join(RESULTS_DIR,roi + '.hdf5')   # where to store the results
     #if not os.path.isdir(output_dir):
     #    os.mkdir(output_dir)
 

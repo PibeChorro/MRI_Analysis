@@ -182,17 +182,16 @@ label_df = label_df.iloc[regressors_of_interest]
 
 betas = []                                              # empty list to store data arrays in
 for b, beta in enumerate(label_df.BetaNames):
-    beta_nii = nib.load(os.path.join(FLA_DIR,beta)) # read in beta NIfTI image
-    beta_data = beta_nii.get_fdata()                    # get data from NIfTI image
-    beta_data = beta_data.flatten()                     # convert into one-dimensional array
-    #beta_data = beta_data[ROI] 
-    #beta_data = beta_data[~np.isnan(beta_data)] 
+    beta_nii    = nib.load(os.path.join(FLA_DIR,beta))  # read in beta NIfTI image
+    beta_data   = beta_nii.get_fdata()                  # get data from NIfTI image
+    beta_nii.uncache()                                  # remove beta image from memory
+    beta_data   = beta_data.flatten()                   # convert into one-dimensional array
     betas.append(beta_data)                             # append array on betas list
 betas = np.array(betas)
 
 # inner loop - iterating over mask (=ROIs)
 for r, roi in tqdm(enumerate(ROIS)):
-    output_dir = os.path.join(RESULTS_DIR,roi)   # where to store the results
+    output_dir = os.path.join(RESULTS_DIR,roi + '.hdf5')   # where to store the results
     #if not os.path.isdir(output_dir):
     #    os.mkdir(output_dir)
 
