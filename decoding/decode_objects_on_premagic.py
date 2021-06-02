@@ -66,7 +66,7 @@ if DECODER =='LDA':
         'cutoff_'+str(CUTOFF),
         'feat_trans_'+FEAT_TRANS)
 elif DECODER == 'SVM':
-    SVM_C = 1
+    SVM_C = 0.0001
     decoder_parameters  = os.path.join(
         'scale_'+SCALE,
         'cutoff_'+str(CUTOFF),
@@ -106,7 +106,7 @@ RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 ROI_DIR         = os.path.join(FREESURFER_DIR,SUB,'corrected_ROIs')
 SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
 ANALYSIS        = 'ROI-analysis'
-RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding_debug', ANALYSIS, DECODER, GLM_DATA_DIR, decoder_parameters, SUB)
+RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_objects_premagic', ANALYSIS, DECODER, GLM_DATA_DIR, decoder_parameters, SUB)
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
@@ -134,7 +134,7 @@ decode_p_value  = []
 
 # Optional arguments
 rng_seed = 0
-n_permutations = 100
+n_permutations = 1000
     
 print ('SUB: {}'.format(SUB))
 print ('surfer_dir:	 {}'.format(FREESURFER_DIR))
@@ -204,6 +204,7 @@ for r, roi in tqdm(enumerate(ROIS)):
     for mask in maskdir_list:
         mask_nii = nib.load(mask)
         mask_img = mask_nii.get_fdata()
+        mask_nii.uncache()
         mask_img = np.asarray(mask_img)
         mask_img = mask_img.flatten()
         masklist.append(mask_img)
@@ -228,11 +229,11 @@ for r, roi in tqdm(enumerate(ROIS)):
         ROI_data = ROI_data - ROI_data.mean(axis=0)
         
     if FEAT_TRANS == 'PCA':
-        n_components = min([min(ROI_data.shape),100])
-        my_PCA = PCA(n_components=n_components)
+        n_components    = min ([ROI_data.shape[1], ROI_data.shape[0]//2])   # take maximally half of the data points as used dimensions
+        my_PCA          = PCA(n_components=n_components)
         my_PCA.fit(ROI_data)
-        ROI_data = my_PCA.transform(ROI_data)
-        ROI_data = ROI_data[:,my_PCA.explained_variance_ratio_>0.01]
+        ROI_data        = my_PCA.transform(ROI_data)
+        #ROI_data        = ROI_data[:,my_PCA.explained_variance_ratio_>0.03]
     
     # set outliers to CUTOFF value
     ROI_data[ROI_data>CUTOFF]   = CUTOFF
@@ -282,7 +283,9 @@ fig = plt.figure()
 plt.bar(x, decode_accuracy)
 plt.plot(x[ps],decode_accuracy[ps]+0.1,'*')
 plt.xticks(np.arange(len(ROIS)),ROIS,rotation=45)
-fig.savefig(os.path.join(RESULTS_DIR,SUB+'.png'))
+d = '_'
+d = d.join(decoder_parameters.split(os.sep))
+fig.savefig(os.path.join(RESULTS_DIR,SUB + '_' + DECODER + '_' + GLM_DATA_DIR + '_' + d +'.png'))
 
 # print time the whole processe took
 print ((time.time() - T_START)/3600)

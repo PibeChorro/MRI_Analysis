@@ -103,7 +103,7 @@ RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 ROI_DIR         = os.path.join(FREESURFER_DIR,SUB,'corrected_ROIs')
 SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
 ANALYSIS        = 'ROI-analysis'
-RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', ANALYSIS, DECODER, GLM_DATA_DIR, decoder_parameters, SUB)
+RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', ANALYSIS, DECODER, GLM_DATA_DIR, decoder_parameters, SUB)
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
@@ -199,6 +199,7 @@ for r, roi in tqdm(enumerate(ROIS)):
     for mask in maskdir_list:
         mask_nii = nib.load(mask)
         mask_img = mask_nii.get_fdata()
+        mask_nii.uncache()
         mask_img = np.asarray(mask_img)
         mask_img = mask_img.flatten()
         masklist.append(mask_img)
@@ -274,7 +275,9 @@ fig = plt.figure()
 plt.bar(x, decode_accuracy)
 plt.plot(x[ps],decode_accuracy[ps]+0.1,'*')
 plt.xticks(np.arange(len(decode_accuracy)),ROIS[:len(decode_accuracy)],rotation=45)
-fig.savefig(os.path.join(RESULTS_DIR,SUB+'.png'))
+d = '_'
+d = d.join(decoder_parameters.split(os.sep))
+fig.savefig(os.path.join(RESULTS_DIR,SUB + '_' + DECODER + '_' + GLM_DATA_DIR + '_' + d +'.png'))
 
 # print time the whole processe took
 print ((time.time() - T_START)/3600)
