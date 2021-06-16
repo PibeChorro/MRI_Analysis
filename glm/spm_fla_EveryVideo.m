@@ -83,12 +83,11 @@ softwareName        = 'spm12';              % software used to create preprocess
 % specify the name of the analysis pipeline
 analysisPipeline    = 'spm12-fla';          % how is the folder named that contains first level results
 brainMask           = 'WholeBrain';         % whole brain or ROI
-conditionsAnalyzed  = 'EveryVideo';      % Every magic effect and every version of an effect is a regressor (Appear1, Appear2, Change1, etc.)
-smoothKernelSize	= 9;                    % in mm
-smoothKernelSpace   = 'mni';                % mni or native (mni makes more sense, native rather for explorative analysis... maybe)
+conditionsAnalyzed  = 'EveryVideo';         % Every magic effect and every version of an effect is a regressor (Appear1, Appear2, Change1, etc.)
+smoothKernelSize	= 0;                    % in mm
+smoothKernelSpace   = 'native';             % mni or native (native is used for decoding, mni for contrasts)
 % combine above specifications for a well structured file hierarchy
 smoothnessDir       = [num2str(smoothKernelSize) 'mm-smoothed-' smoothKernelSpace 'space'];                     % Name of smoothed data directory
-destDir             = fullfile (derivesDir, softwareName, analysisPipeline, brainMask, conditionsAnalyzed, smoothnessDir);  % where all the results of the TWO GLMs are stored
 % Get name, location and number of sourcedata subjects
 
 DICOMprefix         = 'sMag'; % input (['Please specify the prefix of your participant data in your SOURCE DATA.\n' ...
@@ -97,9 +96,18 @@ DICOMsubNames       = spm_select('List', sourceDir, 'dir', ['^' DICOMprefix]);  
 DICOMsubNames       = cellstr(DICOMsubNames);                                   % cellstring format is needed for spm
 
 % Get name, location and number of preprocessed subjects
-pipelineName        = 'spm12-preproc';                                                  % how is the folder named that contains preprocessed data
-dataDir             = fullfile(derivesDir, softwareName, pipelineName, smoothnessDir);  % data that is used for the analysis
+pipelineName        = 'spm12-preproc'; 
 realignedDir        = fullfile(derivesDir, softwareName, pipelineName, 'realigned');    % needed for realignment files as regressors of no interest
+% if smoothing size is set to 0 use only realigned, slice time corrected
+% and coregistered data 
+if smoothKernelSize == 0
+    destDir = fullfile (derivesDir, softwareName, analysisPipeline, brainMask, conditionsAnalyzed, [smoothKernelSpace 'space']);  % where all the results of the TWO GLMs are stored
+    dataDir = fullfile (derivesDir, softwareName, pipelineName, 'coregistered');  % data that is used for the analysis
+else
+    destDir = fullfile (derivesDir, softwareName, analysisPipeline, brainMask, conditionsAnalyzed, smoothnessDir);  % where all the results of the TWO GLMs are stored
+    dataDir = fullfile (derivesDir, softwareName, pipelineName, smoothnessDir);  % data that is used for the analysis
+end
+
 subNames            = spm_select('List', dataDir, 'dir', 'sub-');
 subNames            = cellstr(subNames);
 %% Multiband Factor
@@ -131,7 +139,7 @@ do.specialMoment    = 1;
 % should the movement be used as regressors of no interest
 fla.realignmentParametersFlag  = 1;
 
-for s =  1:length(subNames)
+for s = 1:length(subNames)
     %% Define where to look for functional MRI data and the logs that contain information about stimulus on/offsets
     smoothedDataDir     = fullfile(dataDir,         subNames{s},'func');
     realignedDataDir    = fullfile(realignedDir,    subNames{s},'func');
@@ -139,7 +147,7 @@ for s =  1:length(subNames)
     % Further information - number of runs and where a DICOM file can be
     % found
     runs                = cellstr(spm_select('List', smoothedDataDir, '.nii')); 
-    numRuns             = length(runs); 
+    numRuns             = 12;%length(runs); 
     sourcedataRuns      = spm_select('FPList',fullfile(sourceDir,DICOMsubNames{s},'func'), 'dir','^run*');
     sourcedataRuns      = cellstr(sourcedataRuns);
     %% load a dicom header that contains information needed for analysis
@@ -164,7 +172,7 @@ for s =  1:length(subNames)
         matlabbatch{1}.spm.stats.fmri_spec.fact             = struct('name', {}, 'levels', {});
         matlabbatch{1}.spm.stats.fmri_spec.bases.hrf.derivs = [0 0];                % derivatives
         matlabbatch{1}.spm.stats.fmri_spec.volt             = 1;                    % CHECK
-        matlabbatch{1}.spm.stats.fmri_spec.global           = '';                   % Global scaling? if so: 'Scaling' if not empty: ''
+        matlabbatch{1}.spm.stats.fmri_spec.global           = 'scaling';                   % Global scaling? if so: 'Scaling' if not empty: ''
         matlabbatch{1}.spm.stats.fmri_spec.mthresh          = 0.8;                  % Masking threshold
         matlabbatch{1}.spm.stats.fmri_spec.mask             = {''};                 % Mask?
         matlabbatch{1}.spm.stats.fmri_spec.cvi              = 'AR(1)';
@@ -252,9 +260,8 @@ for s =  1:length(subNames)
                     % specify the trial onsets and durations.
                     VideoNames          = log.data.Condition;
                     fla.conditionNames  = convertStringsToChars(VideoNames);
-                    fla.nconditions     = length(fla.conditionNames);
-                    fla.trialOnset     = {};
-                    fla.trialDuration  = {};
+                    fla.trialOnset      = {};
+                    fla.trialDuration   = {};
                     for reg = 1:length (VideoNames)
                         % get the video name so you can extract the Timepoint
                         % of magic moment from the 'do' struct
@@ -262,10 +269,10 @@ for s =  1:length(subNames)
                         % condition. Therefore we need to get the normal video
                         % name
                         currentVideo = VideoNames(reg);
-                        fla.trialOnset{end+1}      = log.data.VideoStart(contains(log.data.Condition,currentVideo))-log.Keys.trig(end);
+                        fla.trialOnset{end+1}      = log.data.VideoStart(reg)-log.Keys.trig(end);
 
                         % maybe remove the duration
-                        fla.trialDuration{end+1}   = log.data.Rating_stimOn(contains(log.data.Condition,currentVideo))...
+                        fla.trialDuration{end+1}   = log.data.Rating_stimOn(reg)-log.Keys.trig(end)...
                             -fla.trialOnset{end};
                     end
                     % We just add 2 seconds for the response in the last entry of trialDuration and the end of each Video as trialOnset
@@ -317,7 +324,6 @@ for s =  1:length(subNames)
                     % specify the trial onsets and durations.
                     VideoNames          = log.data.Condition;
                     fla.conditionNames  = convertStringsToChars(VideoNames);
-                    fla.nconditions     = length(fla.conditionNames);
                     fla.trialOnset      = {}; 
                     fla.trialDuration   = {};
                     for reg = 1:length (VideoNames)
@@ -334,15 +340,15 @@ for s =  1:length(subNames)
                         end
                         SpecialMoment               = do.all_frames_of_effect(contains(do.ListOfVideos,normalVideoName));
                         SpecialMomentOnset          = SpecialMoment{1}*frameTime;
-                        fla.trialOnset{end+1}      = log.data.VideoStart(contains(log.data.Condition,currentVideo))-log.Keys.trig(end)+...
+                        fla.trialOnset{end+1}       = log.data.VideoStart(reg)-log.Keys.trig(end)+...
                             SpecialMomentOnset;
 
                         fla.trialDuration{end+1}   = 0;
                     end
                     % We just add 2 seconds for the response in the last entry of trialDuration and the end of each Video as trialOnset
-                    fla.conditionNames{end+1}       = 'Response';
-                    fla.trialOnset{end+1}         = log.data.Rating_stimOn - log.Keys.trig(end);
-                    fla.trialDuration{end+1}      = ones(1, length (fla.trialOnset{end}))*2;
+                    fla.conditionNames{end+1}   = 'Response';
+                    fla.trialOnset{end+1}       = log.data.Rating_stimOn - log.Keys.trig(end);
+                    fla.trialDuration{end+1}    = ones(1, length (fla.trialOnset{end}))*2;
                 else % don't get the matfile log files.
 
                   %PLACE HOLDER
