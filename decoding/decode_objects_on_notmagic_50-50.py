@@ -9,6 +9,7 @@ import os
 import argparse
 from pathlib import Path
 import glob
+import subprocess
 # import/export data
 import h5py
 # data structuration and calculations
@@ -59,17 +60,25 @@ DECODER         = ARGS.algorythm
 CUTOFF          = ARGS.cutoff
 FEAT_TRANS      = ARGS.feature
 SCALE           = ARGS.scaling
+
+
+# make sure if scaling is None that cutoff value is inf and there is no need for a cutoff value level in file hierarchy
+if SCALE == 'None':
+    CUTOFF = np.inf
+    decoder_parameters = 'scale_'+SCALE
+else:
+    decoder_parameters = os.path.join('scale_'+SCALE,'cutoff_'+str(CUTOFF))
+    
+    
 if DECODER =='LDA':
     my_decoder          = LDA(solver='lsqr', shrinkage='auto')
     decoder_parameters  = os.path.join(
-        'scale_'+SCALE,
-        'cutoff_'+str(CUTOFF),
+        decoder_parameters,
         'feat_trans_'+FEAT_TRANS)
 elif DECODER == 'SVM':
-    SVM_C = 0.0001
+    SVM_C = 1
     decoder_parameters  = os.path.join(
-        'scale_'+SCALE,
-        'cutoff_'+str(CUTOFF),
+        decoder_parameters,
         'feat_trans_'+FEAT_TRANS,
         'C_'+str(SVM_C))
     if FEAT_TRANS == 'PCA':
@@ -80,10 +89,8 @@ elif DECODER == 'SVM':
 else:
     my_decoder          = LDA(solver='lsqr', shrinkage='auto')
     decoder_parameters  = os.path.join(
-        'scale_'+SCALE,
-        'cutoff_'+str(CUTOFF),
+        decoder_parameters,
         'feat_trans_'+FEAT_TRANS)
-        
 
 # variables for path selection and data access
 HOME            = str(Path.home())
@@ -106,7 +113,7 @@ ROI_DIR         = os.path.join(FREESURFER_DIR,SUB,'corrected_ROIs')
 RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
 ANALYSIS        = 'ROI-analysis'
-RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_objects_premagic', ANALYSIS, 
+RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'object_decoding', 'train75_test25_notmagic', ANALYSIS, 
                                DECODER, GLM_DATA_DIR, decoder_parameters, SUB)
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
@@ -138,11 +145,11 @@ decode_p_value  = []
 rng_seed = 0
 n_permutations = 1000
     
-print ('SUB: {}'.format(SUB))
-print ('surfer_dir:	 {}'.format(FREESURFER_DIR))
-print ('RESULTS_DIR:	 {}'.format(RESULTS_DIR))
+print ('Analysing subject: {}'.format(SUB))
+print ('Getting ROIs from:	 {}'.format(FREESURFER_DIR))
+print ('Saving data at:	 {}'.format(RESULTS_DIR))
 print ('rng_seed:	 {}'.format(rng_seed))
-print ('n_perm:	 {}'.format(n_permutations))
+print ('Number of permutations:	 {}'.format(n_permutations))
 
 
 ########################################
@@ -172,11 +179,9 @@ runs    = [int(s_filter.split()[0]) for s_filter in x]
 # add further data to DataFrame
 label_df['Runs']    = runs                                      # In which run
 # again a complex list comprehension to only keep magic videos
-regressors_of_interest  = [any(i in n for i in LABEL_NAMES) & ('Magic' in n) for n in SPM_REGRESSORS]
-runs_of_interest        = [1,2,5,6,9,10] # only pre revelation videos
+regressors_of_interest  = [any(i in n for i in LABEL_NAMES) & ('Magic' not in n) for n in SPM_REGRESSORS]
 # throw out all rows of regressors of no interest
 label_df = label_df.iloc[regressors_of_interest]
-label_df = label_df[label_df.Runs.isin(runs_of_interest)]
 label_df['Chunks']  = label_df.Regressors.str.contains('1_')    # The chunks (needed for cross validation)
 label_df.Chunks     = label_df.Chunks.astype(int)               # convert from boolean to int
 label_df['Labels']  = np.nan                                    # Labels
@@ -284,6 +289,15 @@ plt.xticks(np.arange(len(ROIS)),ROIS,rotation=45)
 d = '_'
 d = d.join(decoder_parameters.split(os.sep))
 fig.savefig(os.path.join(RESULTS_DIR,SUB + '_' + DECODER + '_' + GLM_DATA_DIR + '_' + d +'.png'))
+
+git_hash = subprocess.check_output(["git", "describe", "--always"]).strip()
+
+# create a log file, that saves some information about the run script
+with open(os.path.join(RESULTS_DIR,'logfile.txt'), 'w+') as writer:
+    writer.write('Codeversion: {} \n'.format(git_hash))
+    writer.write('Number of permutations: {}\n'.format(n_permutations))
+    writer.writer('Number of kernels used: {}\n'.format(str(N_PROC)))
+    writer.write('Time for computation: {}h'.format(str((time.time() - T_START)/3600)))
 
 # print time the whole processe took
 print ((time.time() - T_START)/3600)
