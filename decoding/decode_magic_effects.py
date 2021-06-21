@@ -116,7 +116,8 @@ ROIS = [
         'TO1', 'TO2', 
         'FEF', 'SPL1',
         'PHC1', 'PHC2',
-        'IPS1' ,'IPS2', 'IPS3', 'IPS4','IPS5'
+        'IPS1' ,'IPS2', 'IPS3', 'IPS4','IPS5',
+        'ventricle'
       ]
 
 LABEL_NAMES = [
