@@ -110,8 +110,9 @@ RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding','cross_decoding', 'tr
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
-# define ROIs
+#define ROIs
 ROIS = [
+        'ventricle',
         'V1', 'V2', 'V3', 'hV4', 
         'V3A', 'V3B', 
         'LO1', 'LO2', 
@@ -176,15 +177,6 @@ runs    = [int(s_filter.split()[0]) for s_filter in x]
 
 # add further data to DataFrame
 label_df['Runs']    = runs   # In which run
-label_df['Labels']  = np.nan # Labels
-label_df['Chunks']  = np.nan # Chunks needed for cross validation
-# Check for every entry in Regressors if it contains one of the label names. If so, assign the label name
-for l in LABEL_NAMES:
-    label_df.Labels[label_df.Regressors.str.contains(l)] = l
-    
-for e, effect in enumerate(EFFECT_NAMES):
-    label_df.Chunks[label_df.Regressors.str.contains(effect)] = e
-
 # again a complex list comprehension to only keep magic videos
 regressors_of_interest  = [any(i in n for i in LABEL_NAMES) & ('Magic' in n) for n in SPM_REGRESSORS]
 runs_of_interest        = [1,2,5,6,9,10] # only pre revelation videos
@@ -192,7 +184,18 @@ runs_of_interest        = [1,2,5,6,9,10] # only pre revelation videos
 label_df = label_df.iloc[regressors_of_interest]
 label_df = label_df[label_df.Runs.isin(runs_of_interest)]
 
-label_df.Chunks     = label_df.Chunks.astype(int)               # convert from boolean to int
+label_df['Labels']  = np.nan # Labels
+label_df['Chunks']  = np.nan # Chunks needed for cross validation
+# Check for every entry in Regressors if it contains one of the label names. If so, assign the label name
+for l in LABEL_NAMES:
+    label_df.Labels = np.where(label_df.Regressors.str.contains(l),l,label_df.Labels)
+    #label_df.Labels[label_df.Regressors.str.contains(l)] = l
+    
+for e, effect in enumerate(EFFECT_NAMES):
+    label_df.Chunks = np.where(label_df.Regressors.str.contains(effect),e,label_df.Chunks)
+    #label_df.Chunks[label_df.Regressors.str.contains(effect)] = e
+
+label_df.Chunks = label_df.Chunks.astype(int)
 
 betas = []                                              # empty list to store data arrays in
 for b, beta in enumerate(label_df.BetaNames):

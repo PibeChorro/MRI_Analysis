@@ -42,13 +42,13 @@ T_START = time.time()
 parser = argparse.ArgumentParser()
 
 # add all the input arguments
-parser.add_argument("--sub",        "-s",                               default='sub-01')         # subject
-parser.add_argument("--smooth",             nargs='?',  const=0,        default=0, type=int)         # what data should be used
+parser.add_argument("--sub",        "-s",                               default='sub-01')           # subject
+parser.add_argument("--smooth",             nargs='?',  const=0,        default=0, type=int)        # what data should be used
 parser.add_argument("--algorythm",  "-a",   nargs='?',  const='LDA',    default='LDA')
 parser.add_argument("--scaling",            nargs='?',  const='None',   default='None', type=str)
 parser.add_argument("--cutoff",     "-c",   nargs='?',  const=np.inf,   default=np.inf, type=float) # if and with which value (in std) data is cut off 
 parser.add_argument("--feature",    "-f",   nargs='?',  const='None',   default='None', type=str)
-parser.add_argument("--kernels",    "-k",   nargs='?',  const=12,       default=1, type=int)   # how many processes should be run in parallel
+parser.add_argument("--kernels",    "-k",   nargs='?',  const=12,       default=1, type=int)        # how many processes should be run in parallel
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
 # assign values 
@@ -102,16 +102,18 @@ else:
                                'EveryVideo',GLM_DATA_DIR,
                                'WholeVideo',SUB)
 FREESURFER_DIR  = os.path.join(DERIVATIVES_DIR, 'freesurfer')
-RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 ROI_DIR         = os.path.join(FREESURFER_DIR,SUB,'corrected_ROIs')
+RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
 ANALYSIS        = 'ROI-analysis'
-RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_objects_premagic', ANALYSIS, DECODER, GLM_DATA_DIR, decoder_parameters, SUB)
+RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_objects_premagic', ANALYSIS, 
+                               DECODER, GLM_DATA_DIR, decoder_parameters, SUB)
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
 # define ROIs
 ROIS = [
+        'ventricle',
         'V1', 'V2', 'V3', 'hV4', 
         'V3A', 'V3B', 
         'LO1', 'LO2', 
@@ -169,19 +171,18 @@ runs    = [int(s_filter.split()[0]) for s_filter in x]
 
 # add further data to DataFrame
 label_df['Runs']    = runs                                      # In which run
-label_df['Chunks']  = label_df.Regressors.st.contains('1_')     # The chunks (needed for cross validation)
-label_df.Chunks     = label_df.Chunks.astype(int)               # convert from boolean to int
-label_df['Labels']  = np.nan                                    # Labels
-# Check for every entry in Regressors if it contains one of the label names. If so, assign the label name
-for l in LABEL_NAMES:
-    label_df.Labels[label_df.Regressors.str.contains(l)] = l
-
 # again a complex list comprehension to only keep magic videos
 regressors_of_interest  = [any(i in n for i in LABEL_NAMES) & ('Magic' in n) for n in SPM_REGRESSORS]
 runs_of_interest        = [1,2,5,6,9,10] # only pre revelation videos
 # throw out all rows of regressors of no interest
 label_df = label_df.iloc[regressors_of_interest]
 label_df = label_df[label_df.Runs.isin(runs_of_interest)]
+label_df['Chunks']  = label_df.Regressors.str.contains('1_')    # The chunks (needed for cross validation)
+label_df.Chunks     = label_df.Chunks.astype(int)               # convert from boolean to int
+label_df['Labels']  = np.nan                                    # Labels
+# Check for every entry in Regressors if it contains one of the label names. If so, assign the label name
+for l in LABEL_NAMES:
+    label_df.Labels[label_df.Regressors.str.contains(l)] = l
 
 betas = []                                              # empty list to store data arrays in
 for b, beta in enumerate(label_df.BetaNames):
@@ -195,11 +196,7 @@ betas = np.array(betas)
 # inner loop - iterating over mask (=ROIs)
 for r, roi in tqdm(enumerate(ROIS)):
     output_dir = os.path.join(RESULTS_DIR,roi + '.hdf5')   # where to store the results
-    #if not os.path.isdir(output_dir):
-    #    os.mkdir(output_dir)
 
-    # call combineROIs with the selected ROI and ROI directory
-    #ROI = combineROIs(roi, ROI_dir)
     maskdir_list = glob.glob(os.path.join(ROI_DIR,'*' + roi + '*.nii'))
     masklist = []
     for mask in maskdir_list:
