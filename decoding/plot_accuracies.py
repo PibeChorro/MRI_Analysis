@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import glob
 from pathlib import Path
 # import/export data
 import h5py
@@ -30,7 +31,7 @@ ROIS = [
       ]
 
 COLORS = ['r','b','y']
-MARKERSTYLE = ['s','D','^', '>','*','<','o','v']
+MARKERSTYLE = ['s','D','^', '>','*','<','o','v','+','.','h','H']
 
 SMOOTH_SIZES = ['nativespace', '2mm-smoothed-nativespace','3mm-smoothed-nativespace']# 
 SCALES = ['scale_None', 'scale_z']
@@ -43,34 +44,57 @@ fig.set_figheight(30)
 
 for s,smooth in enumerate(SMOOTH_SIZES):
     color = COLORS[s]
-    
-    for sc, scale in enumerate(SCALES):
-        
-        for cu, cutoff in enumerate(CUTOFFS):
+    idx=0
+    for root, directories, files in os.walk(os.path.join(RESULTS_DIR, smooth)):
+        if 'sub-01' in directories:
+            linestyle = color+MARKERSTYLE[idx]
+            idx += 1
+            path_as_list = root.split(os.sep)
+            index = path_as_list.index(smooth)+1
             
-            for t, transform in enumerate(TRANSFORMATIONS):
+            p_values = []
+            accuracies = []
+            for roi in ROIS:
+                roi_file = os.path.join(root,'sub-01', roi + '.hdf5')
+                res = h5py.File(roi_file, 'r')
+                accuracies.append(res['accuracy'][()]-1/3)
+                p_values.append(res['p_value'][()])
+            ax0.plot(accuracies,linestyle,markersize=12, label='_'.join(path_as_list[index:]))#, label=scale+cutoff+transform)
+            ax0.plot(accuracies, ls=':')
+            ax0.tick_params(axis='both',labelsize=20)
             
-                linestyle = color+MARKERSTYLE[t+cu*len(TRANSFORMATIONS)+sc*len(CUTOFFS)+sc*len(TRANSFORMATIONS)]
-                datapath = os.path.join(RESULTS_DIR, smooth,scale,cutoff,transform, SUB)
-                p_values = []
-                accuracies = []
-                
-                if not os.path.exists(datapath):
-                    continue
-                for roi in ROIS:
-                    roi_file = os.path.join(datapath, roi + '.hdf5')
-                    res = h5py.File(roi_file, 'r')
-                    accuracies.append(res['accuracy'][()]-1/3)
-                    p_values.append(res['p_value'][()])
-                    
-                ax0.plot(accuracies,linestyle, label=scale+cutoff+transform,markersize=12)
-                ax0.plot(accuracies, ls=':')
-                ax0.tick_params(axis='both',labelsize=20)
-                
-                ax1.plot(p_values, linestyle,label=scale+cutoff+transform,markersize=12)
-                ax1.plot(p_values, ls=':')
-                ax1.tick_params(axis='both',labelsize=20)
+            ax1.plot(p_values, linestyle,markersize=12, label='_'.join(path_as_list[index:]))#,label=scale+cutoff+transform)
+            ax1.plot(p_values, ls=':')
+            ax1.tick_params(axis='both',labelsize=20)
     ax1.plot(np.NaN,np.NaN,c=COLORS[s] , label = smooth)
+    
+    # for sc, scale in enumerate(SCALES):
+        
+    #     for cu, cutoff in enumerate(CUTOFFS):
+            
+    #         for t, transform in enumerate(TRANSFORMATIONS):
+            
+    #             linestyle = color+MARKERSTYLE[t+cu*len(TRANSFORMATIONS)+sc*len(CUTOFFS)+sc*len(TRANSFORMATIONS)]
+    #             datapath = os.path.join(RESULTS_DIR, smooth,scale,cutoff,transform, SUB)
+    #             p_values = []
+    #             accuracies = []
+                
+    #             if not os.path.exists(datapath):
+    #                 continue
+    #             for roi in ROIS:
+    #                 roi_file = os.path.join(datapath, roi + '.hdf5')
+    #                 res = h5py.File(roi_file, 'r')
+    #                 accuracies.append(res['accuracy'][()]-1/3)
+    #                 p_values.append(res['p_value'][()])
+                    
+    #             ax0.plot(accuracies,linestyle, label=scale+cutoff+transform,markersize=12)
+    #             ax0.plot(accuracies, ls=':')
+    #             ax0.tick_params(axis='both',labelsize=20)
+                
+    #             ax1.plot(p_values, linestyle,label=scale+cutoff+transform,markersize=12)
+    #             ax1.plot(p_values, ls=':')
+    #             ax1.tick_params(axis='both',labelsize=20)
+    # ax1.plot(np.NaN,np.NaN,c=COLORS[s] , label = smooth)
 
 ax1.invert_yaxis()
 ax0.set_ylim(0.0)
@@ -89,4 +113,3 @@ handles = [handles[i] for i in ids]
 fig.legend(handles, labels, loc='upper left',prop={'size': 18})
 
 fig.savefig(os.path.join(RESULTS_DIR,'accuracies.png'))
-                

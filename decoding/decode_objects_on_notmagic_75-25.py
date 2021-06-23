@@ -9,7 +9,7 @@ import os
 import argparse
 from pathlib import Path
 import glob
-import subprocess
+import git
 # import/export data
 import h5py
 # data structuration and calculations
@@ -301,7 +301,8 @@ d = '_'
 d = d.join(decoder_parameters.split(os.sep))
 fig.savefig(os.path.join(RESULTS_DIR,SUB + '_' + DECODER + '_' + GLM_DATA_DIR + '_' + d +'.png'))
 
-git_hash = subprocess.check_output(["git", "describe", "--always"]).strip()
+rep = git.Repo(search_parent_directories=True)
+git_hash = rep.head.object.hexsha
 
 # create a log file, that saves some information about the run script
 with open(os.path.join(RESULTS_DIR,'logfile.txt'), 'w+') as writer:
