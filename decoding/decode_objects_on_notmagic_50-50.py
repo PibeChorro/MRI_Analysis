@@ -297,7 +297,7 @@ git_hash = rep.head.object.hexsha
 with open(os.path.join(RESULTS_DIR,'logfile.txt'), 'w+') as writer:
     writer.write('Codeversion: {} \n'.format(git_hash))
     writer.write('Number of permutations: {}\n'.format(n_permutations))
-    writer.writer('Number of kernels used: {}\n'.format(str(N_PROC)))
+    writer.write('Number of kernels used: {}\n'.format(str(N_PROC)))
     writer.write('Time for computation: {}h'.format(str((time.time() - T_START)/3600)))
 
 # print time the whole processe took

@@ -8,6 +8,7 @@
 import os
 import argparse
 from pathlib import Path
+import git
 import glob
 # import/export data
 import h5py
@@ -121,9 +122,9 @@ ROIS = [
       ]
 
 LABEL_NAMES = [
-    'Magic_Appear',
-    'Magic_Change',
-    'Magic_Vanish'
+    'Appear',
+    'Change',
+    'Vanish'
 ]
 
 # empty lists that will be filled with the results to plot after calculation
@@ -166,17 +167,22 @@ x       = [' '.join(re.findall(r"\((\d+)\)",string)) for string in label_df.Regr
 runs    = [int(s_filter.split()[0]) for s_filter in x]
 
 # add further data to DataFrame
-label_df['Runs']    = runs                # In which run
-label_df['Chunks']  = label_df.Runs%2     # The chunks (needed for cross validation)
-label_df['Labels']  = np.nan              # Labels
-# Check for every entry in Regressors if it contains one of the label names. If so, assign the label name
-for l in LABEL_NAMES:
-    label_df.Labels[label_df.Regressors.str.contains(l)] = l
+label_df['Runs']    = runs                  # In which run
+label_df['Chunks']  = (label_df.Runs-1)//4  # The chunks (needed for cross validation)
+label_df['Labels']  = np.nan                # Labels
 
 # again a complex process to throw out regressors of no interest (like realignment)
-regressors_of_interest = [True if any(i in n for i in LABEL_NAMES) else False for n in SPM_REGRESSORS]
+regressors_of_interest  = [True if 'Magic' in n else False for n in SPM_REGRESSORS]
+runs_of_interest        = [1,2,5,6,9,10] # pre revelation runs
 # throw out all rows of regressors of no interest
 label_df = label_df.iloc[regressors_of_interest]
+label_df = label_df[label_df.Runs.isin(runs_of_interest)]
+
+# Check for every entry in Regressors if it contains one of the label names. If so, assign the label name
+for l in LABEL_NAMES:
+    label_df.Labels = np.where(label_df.Regressors.str.contains(l),l,label_df.Labels)
+    #label_df.Labels[label_df.Regressors.str.contains(l)] = l
+
 
 betas = []                                              # empty list to store data arrays in
 for b, beta in enumerate(label_df.BetaNames):
@@ -279,6 +285,16 @@ plt.xticks(np.arange(len(decode_accuracy)),ROIS[:len(decode_accuracy)],rotation=
 d = '_'
 d = d.join(decoder_parameters.split(os.sep))
 fig.savefig(os.path.join(RESULTS_DIR,SUB + '_' + DECODER + '_' + GLM_DATA_DIR + '_' + d +'.png'))
+
+rep = git.Repo(search_parent_directories=True)
+git_hash = rep.head.object.hexsha
+
+# create a log file, that saves some information about the run script
+with open(os.path.join(RESULTS_DIR,'logfile.txt'), 'w+') as writer:
+    writer.write('Codeversion: {} \n'.format(git_hash))
+    writer.write('Number of permutations: {}\n'.format(n_permutations))
+    writer.write('Number of kernels used: {}\n'.format(str(N_PROC)))
+    writer.write('Time for computation: {}h'.format(str((time.time() - T_START)/3600)))
 
 # print time the whole processe took
 print ((time.time() - T_START)/3600)
