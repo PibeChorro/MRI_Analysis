@@ -76,6 +76,7 @@ elif DECODER == 'SVM':
         'feat_trans_'+FEAT_TRANS,
         'C_'+str(SVM_C))
     my_decoder          = SVC(kernel='linear', C=SVM_C)
+# make LDA the default in case something completely different was given
 else:
     raise
         
@@ -87,7 +88,6 @@ elif RUNS_TO_USE == 'all':
     runs_of_interest = [1,2,3,4,5,6,7,8,9,10,11,12] 
 else:
     raise
-
 # variables for path selection and data access
 HOME            = str(Path.home())
 PROJ_DIR        = os.path.join(HOME, 'Documents/Master_Thesis/DATA/MRI')
@@ -109,31 +109,23 @@ RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 ROI_DIR         = os.path.join(FREESURFER_DIR,SUB,'corrected_ROIs')
 SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
 ANALYSIS        = 'ROI-analysis'
-RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
-                               'decode_effect_on_'+RUNS_TO_USE+'magic',
+RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic_vs_nomagic',RUNS_TO_USE+'_videos',
                                'SpecialMoment', ANALYSIS, DECODER, SUB)
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
 # define ROIs
 ROIS = [
-        # 'V1', 'V2', 'V3', 'hV4', 
-        # 'V3A', 'V3B', 
-        # 'LO1', 'LO2', 
-        # 'VO1', 'VO2', 
-        # 'TO1', 'TO2', 
-        # 'FEF', 'SPL1',
-        # 'IPS',
-        # 'ACC', 'PCC', 
-        # 'IFG', 'aINSULA', 
-        'IFJ', 'PHT', 'PF'
+        'V1', 'V2', 'V3', 'hV4', 
+        'V3A', 'V3B', 
+        'LO1', 'LO2', 
+        'VO1', 'VO2', 
+        'TO1', 'TO2', 
+        'FEF', 'SPL1',
+        'IPS',
+        'ACC', 'PCC', 'IFG', 'aINSULA', 'IFJ',
+        'PHT', 'PF'
       ]
-
-LABEL_NAMES = [
-    'Appear',
-    'Change',
-    'Vanish'
-]
 
 # empty lists that will be filled with the results to plot after calculation
 decode_accuracy = []
@@ -176,20 +168,33 @@ runs    = [int(s_filter.split()[0]) for s_filter in x]
 
 # add further data to DataFrame
 label_df['Runs']    = runs                  # In which run
-label_df['Chunks']  = (label_df.Runs-1)//4  # The chunks (needed for cross validation)
+label_df['Chunks']  = (label_df.Runs-1)%2   # The chunks (needed for cross validation)
 label_df['Labels']  = np.nan                # Labels
 
 # again a complex process to throw out regressors of no interest (like realignment)
-regressors_of_interest  = [True if 'Magic' in n else False for n in SPM_REGRESSORS]
+regressors_of_interest  = [True if ('Magic' in n) 
+                           or ('Control' in n) 
+                           or ('Surprise' in n) 
+                           else False for n in SPM_REGRESSORS]
 # throw out all rows of regressors of no interest
-label_df = label_df.iloc[regressors_of_interest]
-# only keep data from the runs you are interested in
+label_df        = label_df.iloc[regressors_of_interest]
 label_df = label_df[label_df.Runs.isin(runs_of_interest)]
-
 # Check for every entry in Regressors if it contains one of the label names. If so, assign the label name
-for l in LABEL_NAMES:
-    label_df.Labels = np.where(label_df.Regressors.str.contains(l),l,label_df.Labels)
-    #label_df.Labels[label_df.Regressors.str.contains(l)] = l
+
+label_df.Labels = np.where(label_df.Regressors.str.contains('Magic'),'Magic',label_df.Labels)
+label_df.Labels = np.where(label_df.Regressors.str.contains('Control'),'NoMagic',label_df.Labels)
+label_df.Labels = np.where(label_df.Regressors.str.contains('Surprise'),'NoMagic',label_df.Labels)
+###########
+# INDICES #
+###########
+
+# Get all the indices we need
+# indices                 = label_df.index # indices of the remaining dataframe
+# magic_indices           = label_df.Labels.str.contains('Magic') # all indices of magic videos
+# post_revelation_indices = label_df.Runs.isin(runs_of_interest)  # all indices of the post revelation runs
+# dropping_indices        = indices[magic_indices & post_revelation_indices] # all indices of Magic labels AND post revelation
+
+# label_df = label_df.drop(dropping_indices)
 
 
 betas = []                                              # empty list to store data arrays in

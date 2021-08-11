@@ -50,7 +50,7 @@ parser.add_argument("--scaling",            nargs='?',  const='None',   default=
 parser.add_argument("--cutoff",     "-c",   nargs='?',  const=np.inf,   default=np.inf, type=float) # if and with which value (in std) data is cut off 
 parser.add_argument("--feature",    "-f",   nargs='?',  const='None',   default='None', type=str)
 parser.add_argument("--kernels",    "-k",   nargs='?',  const=12,       default=1,      type=int)   # how many processes should be run in parallel
-parser.add_argument("--runs",       "-r",   nargs="?",  const='pre',    default='pre',  type=str)
+
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
 # assign values 
@@ -61,7 +61,7 @@ DECODER         = ARGS.algorythm
 CUTOFF          = ARGS.cutoff
 FEAT_TRANS      = ARGS.feature
 SCALE           = ARGS.scaling
-RUNS_TO_USE     = ARGS.runs
+
 if DECODER =='LDA':
     my_decoder          = LDA(solver='lsqr', shrinkage='auto')
     decoder_parameters  = os.path.join(
@@ -76,15 +76,7 @@ elif DECODER == 'SVM':
         'feat_trans_'+FEAT_TRANS,
         'C_'+str(SVM_C))
     my_decoder          = SVC(kernel='linear', C=SVM_C)
-else:
-    raise
-        
-if RUNS_TO_USE == 'pre':
-    runs_of_interest = [1,2,5,6,9,10]
-elif RUNS_TO_USE == 'post':
-    runs_of_interest = [3,4,7,8,11,12] 
-elif RUNS_TO_USE == 'all':
-    runs_of_interest = [1,2,3,4,5,6,7,8,9,10,11,12] 
+# make LDA the default in case something completely different was given
 else:
     raise
 
@@ -109,31 +101,22 @@ RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 ROI_DIR         = os.path.join(FREESURFER_DIR,SUB,'corrected_ROIs')
 SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
 ANALYSIS        = 'ROI-analysis'
-RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
-                               'decode_effect_on_'+RUNS_TO_USE+'magic',
-                               'SpecialMoment', ANALYSIS, DECODER, SUB)
+RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 'decode_pre_vs_post','SpecialMoment', ANALYSIS, DECODER, SUB)
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
 # define ROIs
 ROIS = [
-        # 'V1', 'V2', 'V3', 'hV4', 
-        # 'V3A', 'V3B', 
-        # 'LO1', 'LO2', 
-        # 'VO1', 'VO2', 
-        # 'TO1', 'TO2', 
-        # 'FEF', 'SPL1',
-        # 'IPS',
-        # 'ACC', 'PCC', 
-        # 'IFG', 'aINSULA', 
-        'IFJ', 'PHT', 'PF'
+        'V1', 'V2', 'V3', 'hV4', 
+        'V3A', 'V3B', 
+        'LO1', 'LO2', 
+        'VO1', 'VO2', 
+        'TO1', 'TO2', 
+        'FEF', 'SPL1',
+        'IPS',
+        'ACC', 'PCC', 'IFG', 'aINSULA', 'IFJ',
+        'PHT', 'PF'
       ]
-
-LABEL_NAMES = [
-    'Appear',
-    'Change',
-    'Vanish'
-]
 
 # empty lists that will be filled with the results to plot after calculation
 decode_accuracy = []
@@ -176,21 +159,14 @@ runs    = [int(s_filter.split()[0]) for s_filter in x]
 
 # add further data to DataFrame
 label_df['Runs']    = runs                  # In which run
-label_df['Chunks']  = (label_df.Runs-1)//4  # The chunks (needed for cross validation)
-label_df['Labels']  = np.nan                # Labels
+label_df['Chunks']  = (label_df.Runs-1)%2   # The chunks (needed for cross validation)
+pre_post_inblock    = (label_df.Runs-1)//2
+label_df['Labels']  = pre_post_inblock%2    # Labels
 
 # again a complex process to throw out regressors of no interest (like realignment)
 regressors_of_interest  = [True if 'Magic' in n else False for n in SPM_REGRESSORS]
-# throw out all rows of regressors of no interest
+
 label_df = label_df.iloc[regressors_of_interest]
-# only keep data from the runs you are interested in
-label_df = label_df[label_df.Runs.isin(runs_of_interest)]
-
-# Check for every entry in Regressors if it contains one of the label names. If so, assign the label name
-for l in LABEL_NAMES:
-    label_df.Labels = np.where(label_df.Regressors.str.contains(l),l,label_df.Labels)
-    #label_df.Labels[label_df.Regressors.str.contains(l)] = l
-
 
 betas = []                                              # empty list to store data arrays in
 for b, beta in enumerate(label_df.BetaNames):
