@@ -51,6 +51,7 @@ parser.add_argument("--cutoff",     "-c",   nargs='?',  const=np.inf,   default=
 parser.add_argument("--feature",    "-f",   nargs='?',  const='None',   default='None', type=str)
 parser.add_argument("--kernels",    "-k",   nargs='?',  const=12,       default=1,      type=int)   # how many processes should be run in parallel
 parser.add_argument("--runs",       "-r",   nargs="?",  const='pre',    default='pre',  type=str)
+parser.add_argument("--perms",      "-p",   nargs="?",  const=1000,     default=1000,   type=int)   # how many permutations
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
 # assign values 
@@ -62,6 +63,7 @@ CUTOFF          = ARGS.cutoff
 FEAT_TRANS      = ARGS.feature
 SCALE           = ARGS.scaling
 RUNS_TO_USE     = ARGS.runs
+N_PERMS         = ARGS.perms
 if DECODER =='LDA':
     my_decoder          = LDA(solver='lsqr', shrinkage='auto')
     decoder_parameters  = os.path.join(
@@ -117,15 +119,12 @@ if not os.path.isdir(RESULTS_DIR):
 
 # define ROIs
 ROIS = [
-        # 'V1', 'V2', 'V3', 'hV4', 
-        # 'V3A', 'V3B', 
-        # 'LO1', 'LO2', 
-        # 'VO1', 'VO2', 
-        # 'TO1', 'TO2', 
-        # 'FEF', 'SPL1',
-        # 'IPS',
-        # 'ACC', 'PCC', 
-        # 'IFG', 'aINSULA', 
+        'V1', 'V2', 'V3', 'hV4', 
+        'V3A', 'V3B', 
+        'LO', 'VO', 
+        'FEF', 'IPS',
+        'ACC', 'PCC', 
+        'IFG', 'aINSULA', 
         'IFJ', 'PHT', 'PF'
       ]
 
@@ -139,15 +138,15 @@ LABEL_NAMES = [
 decode_accuracy = []
 decode_p_value = []
 
-# Optional arguments
+# create a 'random' seed number for the permutation
 rng_seed = 0
-n_permutations = 1000
+for letter in SUB:
+    rng_seed += ord(letter)
     
 print ('Analysing subject: {}'.format(SUB))
 print ('Getting ROIs from:	 {}'.format(FREESURFER_DIR))
 print ('Saving data at:	 {}'.format(RESULTS_DIR))
-print ('rng_seed:	 {}'.format(rng_seed))
-print ('Number of permutations:	 {}'.format(n_permutations))
+print ('Number of permutations:	 {}'.format(N_PERMS))
 
 
 ########################################
@@ -250,14 +249,14 @@ for r, roi in tqdm(enumerate(ROIS)):
     targets                 = np.asarray(label_df.Labels)
     chunks                  = np.asarray(label_df.Chunks)
     runs_for_permutation    = np.asarray(label_df.Runs)
-    if n_permutations > 0:
+    if N_PERMS > 0:
         res = permutation_test_score(
             estimator=my_decoder,
             X=ROI_data,
             y=targets,
             groups=runs_for_permutation,
             cv=PredefinedSplit(chunks),
-            n_permutations=n_permutations,
+            n_permutations=N_PERMS,
             random_state=rng_seed,
             n_jobs=N_PROC,
             verbose=3)
@@ -270,7 +269,7 @@ for r, roi in tqdm(enumerate(ROIS)):
 
     with h5py.File(output_dir, 'w') as f:
         f.create_dataset('accuracy', data=accuracy)
-        if n_permutations > 0:
+        if N_PERMS > 0:
             f.create_dataset('null_distribution', data=null_distribution)
             f.create_dataset('p_value', data=p_value)
             
@@ -300,9 +299,6 @@ git_hash = rep.head.object.hexsha
 # create a log file, that saves some information about the run script
 with open(os.path.join(RESULTS_DIR,'logfile.txt'), 'w+') as writer:
     writer.write('Codeversion: {} \n'.format(git_hash))
-    writer.write('Number of permutations: {}\n'.format(n_permutations))
+    writer.write('Number of permutations: {}\n'.format(N_PERMS))
     writer.write('Number of kernels used: {}\n'.format(str(N_PROC)))
     writer.write('Time for computation: {}h'.format(str((time.time() - T_START)/3600)))
-
-# print time the whole processe took
-print ((time.time() - T_START)/3600)

@@ -109,13 +109,11 @@ if not os.path.isdir(RESULTS_DIR):
 ROIS = [
         'V1', 'V2', 'V3', 'hV4', 
         'V3A', 'V3B', 
-        'LO1', 'LO2', 
-        'VO1', 'VO2', 
-        'TO1', 'TO2', 
-        'FEF', 'SPL1',
-        'IPS',
-        'ACC', 'PCC', 'IFG', 'aINSULA', 'IFJ',
-        'PHT', 'PF'
+        'LO', 'VO', 
+        'FEF', 'IPS',
+        'ACC', 'PCC', 
+        'IFG', 'aINSULA', 
+        'IFJ', 'PHT', 'PF'
       ]
 
 # empty lists that will be filled with the results to plot after calculation
@@ -270,7 +268,7 @@ d = '_'
 d = d.join(decoder_parameters.split(os.sep))
 fig.savefig(os.path.join(RESULTS_DIR,SUB + '_' + DECODER + '_' + GLM_DATA_DIR + '_' + d +'.png'))
 
-rep = git.Repo(search_parent_directories=True)
+rep = git.Repo(os.getcwd(),search_parent_directories=True)
 git_hash = rep.head.object.hexsha
 
 # create a log file, that saves some information about the run script
