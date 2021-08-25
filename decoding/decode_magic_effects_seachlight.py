@@ -66,7 +66,7 @@ parser.add_argument("--smooth",             nargs='?',  const=0,        default=
 parser.add_argument("--algorythm",  "-a",   nargs='?',  const='LDA',    default='LDA',  type=str)
 parser.add_argument("--kernels",    "-k",   nargs='?',  const=12,       default=12,     type=int)   # how many processes should be run in parallel
 parser.add_argument("--runs",       "-r",   nargs="?",  const='pre',    default='pre',  type=str)
-parser.add_argument("--perms",      "-p",   nargs="?",  const=100,      default=100,    type=int)   # how many permutations
+parser.add_argument("--perms",      "-p",   nargs="?",  const=10,       default=10,     type=int)   # how many permutations
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
 # assign values 
@@ -224,12 +224,13 @@ del label_df
 del betas
 
 
-rep = git.Repo(search_parent_directories=True)
+rep = git.Repo(os.getcwd(),search_parent_directories=True)
 git_hash = rep.head.object.hexsha
 
 # create a log file, that saves some information about the run script
 with open(os.path.join(RESULTS_DIR,'serchlight-logfile.txt'), 'w+') as writer:
     writer.write('Codeversion: {} \n'.format(git_hash))
+    writer.write('Number of permutations: {}\n'.format(str(N_PERMS)))
     writer.write('Number of kernels used: {}\n'.format(str(N_PROC)))
     writer.write('Time for computation: {}h'.format(str((time.time() - T_START)/3600)))
 
