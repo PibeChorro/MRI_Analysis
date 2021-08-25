@@ -157,7 +157,7 @@ numBlocks           = 3;
 % should the movement be used as regressors of no interest
 fla.realignmentParametersFlag  = 1;
 
-for s =  1:length(subNames)
+for s = 1:length(subNames)
     %% Define where to look for functional MRI data and the logs that contain information about stimulus on/offsets
     smoothedDataDir     = fullfile(dataDir,         subNames{s}, 'func');
     realignedDataDir    = fullfile(realignedDir,    subNames{s}, 'func');
