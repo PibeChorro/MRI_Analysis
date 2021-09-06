@@ -215,19 +215,14 @@ RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 ANALYSIS        = 'ROI-analysis'
 if DATA == 'pre':
     DATA_TO_USE = 'decode_effect_on_premagic'
-    NUM_LABELS  = 3
 elif DATA == 'post':
     DATA_TO_USE = 'decode_effect_on_postmagic'
-    NUM_LABELS  = 3
 elif DATA == 'all':
     DATA_TO_USE = 'decode_effect_on_allmagic'
-    NUM_LABELS  = 3
 elif DATA == 'pre-post':
     DATA_TO_USE = 'decode_pre_vs_post'
-    NUM_LABELS  = 2
 elif DATA == 'mag-nomag':
     DATA_TO_USE = 'magic_vs_nomagic'
-    NUM_LABELS  = 2
 else:
     raise
 DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
