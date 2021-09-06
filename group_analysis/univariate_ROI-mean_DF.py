@@ -124,8 +124,10 @@ T_START = time.time()
 parser = argparse.ArgumentParser()
 
 # add all the input arguments
-parser.add_argument("--smooth",     nargs='?', const=0,         default=0,          type=int)    # what data should be used
-parser.add_argument("--analyzed",   nargs='?', const='moment',  default='moment',   type=str)    # what data should be used
+parser.add_argument("--smooth",     nargs='?', const=0,         
+                    default=0,          type=int)
+parser.add_argument("--analyzed",   nargs='?', const='moment',  
+                    default='moment',   type=str)
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
 # assign values 

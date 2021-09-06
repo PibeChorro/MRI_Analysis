@@ -110,7 +110,11 @@ def draw_plot(data, ax, offset,edge_color='blue', fill_color='white'):
     bp: a dictionary of artists
     """
     pos = np.arange(data.shape[1])+offset 
-    bp  = ax.boxplot(data, positions= pos, widths=0.2, patch_artist=True, manage_ticks=False)
+    bp  = ax.boxplot(data, 
+                     positions=pos, 
+                     widths=0.2, 
+                     patch_artist=True, 
+                     manage_ticks=False)
     for element in ['boxes', 'whiskers', 'fliers', 'medians', 'caps']:
         plt.setp(bp[element], color=edge_color)
     for patch in bp['boxes']:
@@ -126,8 +130,10 @@ T_START = time.time()
 parser = argparse.ArgumentParser()
 
 # add all the input arguments
-parser.add_argument("--smooth",     nargs='?', const=0,         default=0,          type=int)    
-parser.add_argument("--analyzed",   nargs='?', const='moment',  default='moment',   type=str)    
+parser.add_argument("--smooth",     nargs='?', const=0,         
+                    default=0,          type=int)    
+parser.add_argument("--analyzed",   nargs='?', const='moment',  
+                    default='moment',   type=str)    
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
 # assign values 
