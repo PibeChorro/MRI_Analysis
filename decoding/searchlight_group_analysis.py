@@ -1,5 +1,73 @@
 #!/gpfs01/bartels/user/vplikat/anaconda3/bin/python
 
+##########
+# HEADER #
+##########
+# Before you run this script you have to have run the 
+# 'decode_magic_effects_seachlight.py' script.
+# The underlying rationale and methods for the analysis in this script are 
+# explained in detail in Stelzer, Chen & Turner (2012)
+# The data for this script is derived from an fMRI experiment in which
+# subjects viewed different videos. Either magic, control or surprise videos. 
+# The experiment was devided into 3 blocks. Each block consisted of 4 
+# experimental runs. In each run subjects viewed 24 videos (each video is 
+# considered a trial).
+# The videos in each block were associated with one object (Balls, Cards and 
+# Sticks) and there were 3 magic effects (Appear, Change and Vanish). For each
+# magic effect and object there are two trick versions (i.e. Appear1, Appear2,
+# Change1,...). This resulted in 6 magic videos per object = 18 magic videos 
+# and for every magic video there was a corresponding control video showing
+# the same movements without the magical effect. Additionally per object there
+# were 3 surprise videos showing unusual surprising actions performed with the
+# objects (e.g. eating a playing card).
+# After the second run in each block the underlying method behind each magic 
+# trick was presented.
+
+#                       TIME
+#   ---------------------------------->
+#   OBJECT1 R1  R2  Revelation  R3  R4  |
+#   OBJECT2 R1  R2  Revelation  R3  R4  |   TIME
+#   OBJECT3 R1  R2  Revelation  R3  R4  v
+
+# RUNS: 2*Appear1 Magic 2*Appear2 Magic 2*Appear1 Control 2*Appear2 Control
+#       2*Vanish1 Magic 2*Vanish2 Magic 2*Vanish1 Control 2*Vanish2 Control
+#       2*Change1 Magic 2*Change2 Magic 2*Change1 Control 2*Change2 Control
+#       2*Surprise1     2*Surprise2     2*Surprise13
+#       = 24 Videos
+
+# The aim of the experiment was to find neural correlates of surprise and in 
+# particular of surprising events we consider "impossible". 
+# The data used are beta estimate NIfTI images derived from a GLM using SPM12 
+# in MATLAB and is in MNI space. 
+
+##########################
+# PURPOSE OF THIS SCRIPT #
+##########################
+# The purpose of this script is to generate a number of bootstrapped mean 
+# chance accuracy maps, based on permutation maps from multiple subjects.
+
+################################
+# FUNCTIONALITY OF THIS SCRIPT #
+################################
+# FIRST STEP 
+# Get all important path information and information about the analysis from 
+# command line input.
+# SECOND STEP
+# From all subjects select one random permutation accuracy map and calculate 
+# the mean accuracy for every voxel over the drawn permutation accuracy maps.
+# Save the created mean accuracy map and repeat as often as it was stated in 
+# the command line flag (10 000 in the original paper).
+
+######################
+# COMMAND LINE FLAGS #
+######################
+# --data: data from which previously calculated permutation tests should be 
+# used. Accepted values are pre (magic effect decoding pre revelation), post
+# (magic effect decoding post revelation), all (magic effect decoding using 
+# pre and post revelation data), pre-post (decoding videos pre vs. post 
+# revelation) and mag-nomag (decoding magic vs nomagic).
+# --bootstraps: how many chance distribution maps should be created from the 
+# 100 permutation maps per subject
 #############
 # LIBRARIES #
 #############
@@ -29,14 +97,16 @@ T_START = time.time()
 parser = argparse.ArgumentParser()
 
 # add all the input arguments
-parser.add_argument("--runs",   "-r",   nargs="?",  const='pre',    default='pre',  type=str)
-parser.add_argument("--draws",  "-d",   nargs="?",  const=100,    default=100,  type=int)   # how many bootstrapping draws are done for the null statistic
+parser.add_argument("--data",       "-d",   nargs="?",  const='pre',    
+                    default='pre',  type=str)
+parser.add_argument("--bootstraps", "-b",   nargs="?",  const=1000,     
+                    default=1000,   type=int)   # how many bootstrapping draws are done for the null statistic
 
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
 # assign values 
-RUNS_TO_USE     = ARGS.runs
-BOOTSTRAPPS     = ARGS.draws
+DATA        = ARGS.data
+BOOTSTRAPPS = ARGS.bootstraps
 
 HOME            = str(Path.home())
 PROJ_DIR        = os.path.join(HOME, 'Documents/Master_Thesis/DATA/MRI')
@@ -44,9 +114,25 @@ DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
 
 RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 ANALYSIS        = 'ROI-analysis'
+if DATA == 'pre':
+    DATA_TO_USE = 'decode_effect_on_premagic'
+    NUM_LABELS  = 3
+elif DATA == 'post':
+    DATA_TO_USE = 'decode_effect_on_postmagic'
+    NUM_LABELS  = 3
+elif DATA == 'all':
+    DATA_TO_USE = 'decode_effect_on_allmagic'
+    NUM_LABELS  = 3
+elif DATA == 'pre-post':
+    DATA_TO_USE = 'decode_pre_vs_post'
+    NUM_LABELS  = 2
+elif DATA == 'mag-nomag':
+    DATA_TO_USE = 'magic_vs_nomagic'
+    NUM_LABELS  = 2
+else:
+    raise
 DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
-                               'decode_effect_on_'+RUNS_TO_USE+'magic',
-                               'SpecialMoment','SearchLight_old','LDA')
+                               DATA_TO_USE, 'SpecialMoment','SearchLight','LDA')
 RESULTS_DIR     = os.path.join(DATA_DIR,'group-statistics')
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
@@ -97,5 +183,5 @@ for draw in range(BOOTSTRAPPS):
     
     nib.save(results,os.path.join(RESULTS_DIR,
                                   'perm_{:04d}mean_accuracy.nii'.format(draw)))
-    
-print ('Done')
+print ('Time for analysis:')
+print ((time.time()-T_START)/3600)

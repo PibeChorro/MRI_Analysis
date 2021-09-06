@@ -1,5 +1,98 @@
 #!/gpfs01/bartels/user/vplikat/anaconda3/bin/python
 
+##########
+# HEADER #
+##########
+# The data for this script is derived from an fMRI experiment in which
+# subjects viewed different videos. Either magic, control or surprise videos. 
+# The experiment was devided into 3 blocks. Each block consisted of 4 
+# experimental runs. In each run subjects viewed 24 videos (each video is 
+# considered a trial).
+# The videos in each block were associated with one object (Balls, Cards and 
+# Sticks) and there were 3 magic effects (Appear, Change and Vanish). For each
+# magic effect and object there are two trick versions (i.e. Appear1, Appear2,
+# Change1,...). This resulted in 6 magic videos per object = 18 magic videos 
+# and for every magic video there was a corresponding control video showing
+# the same movements without the magical effect. Additionally per object there
+# were 3 surprise videos showing unusual surprising actions performed with the
+# objects (e.g. eating a playing card).
+# After the second run in each block the underlying method behind each magic 
+# trick was presented.
+
+#                       TIME
+#   ---------------------------------->
+#   OBJECT1 R1  R2  Revelation  R3  R4  |
+#   OBJECT2 R1  R2  Revelation  R3  R4  |   TIME
+#   OBJECT3 R1  R2  Revelation  R3  R4  v
+
+# RUNS: 2*Appear1 Magic 2*Appear2 Magic 2*Appear1 Control 2*Appear2 Control
+#       2*Vanish1 Magic 2*Vanish2 Magic 2*Vanish1 Control 2*Vanish2 Control
+#       2*Change1 Magic 2*Change2 Magic 2*Change1 Control 2*Change2 Control
+#       2*Surprise1     2*Surprise2     2*Surprise13
+#       = 24 Videos
+
+# The aim of the experiment was to find neural correlates of surprise and in 
+# particular of surprising events we consider "impossible". 
+# The data used are beta estimate NIfTI images derived from a GLM using SPM12 
+# in MATLAB. 
+
+##########################
+# PURPOSE OF THIS SCRIPT #
+##########################
+# The purpose of this script is to use a machine learning algorithm to predict
+# the whether data is from a magic or a non-magic video presentation
+# performed on one object, based on training data from the other two objects. 
+# To be able to test for statistical significance, permutation testing is
+# applied.
+# All this is done for a set of ROIs, but on a single subject level
+
+################################
+# FUNCTIONALITY OF THIS SCRIPT #
+################################
+# FIRST STEP 
+# Get all important path information and names of ROIs, magic EFFECTS (Appear, 
+# Change, Vanish) and information about the analysis from command line input.
+# SECOND STEP 
+# Read in the SPM.mat file created by SPM12 when the GLM is estimated.
+# From this SPM.mat file we read out the names of the beta NIfTI images and
+# the names of the regressors, that correspond to the beta image.
+# From the Regressor names the run number (1-12) is extracted and added to the
+# DataFrame. Then all regressors of NO interest (realignment and constant) are 
+# removed.
+# Finally the chunks are defined. Chunks are needed for cross validation 
+# (meaning the whole dataset is sperated in chunks and each chunk is used for
+# testing once).
+# THIRD STEP
+# Read in all beta images that are left and store them in a huge 2D array 
+# (every beta image is flattened turning the 3D image in a 1D array, these
+# arrays are then formed into a 2D array)
+# Iterate over all ROIs, read in the ROI mask image and apply it on the 2D 
+# array. The remaining data can be manipulated according to given flags 
+# (scaling, cutoff etc.) and is then fed into the permutation_test_score method
+# to calculate the measured accuracy and get a null distribution from the 
+# permutation. 
+# FOURTH STEP
+# Save the result in a hdf5 file and make a barplot with the accuracies for
+# each ROI
+
+######################
+# COMMAND LINE FLAGS #
+######################
+# --sub: the subject ID that shall be analyzed
+# --smooth: if the script should read in beta images that are the result of a
+# GLM based on smoothed functional images
+# --algorythm: which algorythm should be used. Currently implemented SVM and LDA
+# --scaling: if the beta image data should be scaled. Currently implemented z,
+# min0max1 and de-meaning
+# --cutoff: If values should be cut off. IMPORTANT makes only sense if scaling
+# was applied
+# --feature: Feature transformation of the data for dimension reduction. 
+# Currently implemented PCA
+# --kernels: How many kernels should be used to parallize the permutation testing
+# --runs: Which data should be used. Either pre, post revelation or all data
+# together
+# --perms: How many permutations are applied
+
 #############
 # LIBRARIES #
 #############
@@ -35,6 +128,7 @@ import matplotlib.pyplot as plt
 # get start time
 T_START = time.time()
 
+# FIRST STEP
 ################################
 # Command line input arguments #
 ################################
@@ -43,14 +137,24 @@ T_START = time.time()
 parser = argparse.ArgumentParser()
 
 # add all the input arguments
-parser.add_argument("--sub",        "-s",                               default='sub-01')         # subject
-parser.add_argument("--smooth",             nargs='?',  const=0,        default=0,      type=int)         # what data should be used
-parser.add_argument("--algorythm",  "-a",   nargs='?',  const='LDA',    default='LDA')
-parser.add_argument("--scaling",            nargs='?',  const='None',   default='None', type=str)
-parser.add_argument("--cutoff",     "-c",   nargs='?',  const=np.inf,   default=np.inf, type=float) # if and with which value (in std) data is cut off 
-parser.add_argument("--feature",    "-f",   nargs='?',  const='None',   default='None', type=str)
-parser.add_argument("--kernels",    "-k",   nargs='?',  const=12,       default=1,      type=int)   # how many processes should be run in parallel
-parser.add_argument("--runs",       "-r",   nargs="?",  const='pre',    default='pre',  type=str)
+parser.add_argument("--sub",        "-s",                               
+                    default='sub-01')         # subject
+parser.add_argument("--smooth",             nargs='?',  const=0,        
+                    default=0,      type=int)         # what data should be used
+parser.add_argument("--algorythm",  "-a",   nargs='?',  const='LDA',    
+                    default='LDA')
+parser.add_argument("--scaling",            nargs='?',  const='None',   
+                    default='None', type=str)
+parser.add_argument("--cutoff",     "-c",   nargs='?',  const=np.inf,   
+                    default=np.inf, type=float) # if and with which value (in std) data is cut off 
+parser.add_argument("--feature",    "-f",   nargs='?',  const='None',   
+                    default='None', type=str)
+parser.add_argument("--kernels",    "-k",   nargs='?',  const=12,       
+                    default=1,      type=int)   # how many processes should be run in parallel
+parser.add_argument("--runs",       "-r",   nargs="?",  const='pre',    
+                    default='pre',  type=str)
+parser.add_argument("--perms",      "-p",   nargs="?",  const=1000,     
+                    default=1000,   type=int)   # how many permutations
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
 # assign values 
@@ -62,6 +166,7 @@ CUTOFF          = ARGS.cutoff
 FEAT_TRANS      = ARGS.feature
 SCALE           = ARGS.scaling
 RUNS_TO_USE     = ARGS.runs
+N_PERMS         = ARGS.perms
 if DECODER =='LDA':
     my_decoder          = LDA(solver='lsqr', shrinkage='auto')
     decoder_parameters  = os.path.join(
@@ -109,7 +214,8 @@ RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 ROI_DIR         = os.path.join(FREESURFER_DIR,SUB,'corrected_ROIs')
 SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
 ANALYSIS        = 'ROI-analysis'
-RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic_vs_nomagic',RUNS_TO_USE+'_videos',
+RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic',
+                               'decoding_magic_vs_nomagic',RUNS_TO_USE+'_videos',
                                'SpecialMoment', ANALYSIS, DECODER, SUB)
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
@@ -129,17 +235,18 @@ ROIS = [
 decode_accuracy = []
 decode_p_value = []
 
-# Optional arguments
+# create a 'random' seed number for the permutation based on the subject name
 rng_seed = 0
-n_permutations = 1000
+for letter in SUB:
+    rng_seed += ord(letter)
     
 print ('Analysing subject: {}'.format(SUB))
 print ('Getting ROIs from:	 {}'.format(FREESURFER_DIR))
 print ('Saving data at:	 {}'.format(RESULTS_DIR))
 print ('rng_seed:	 {}'.format(rng_seed))
-print ('Number of permutations:	 {}'.format(n_permutations))
+print ('Number of permutations:	 {}'.format(N_PERMS))
 
-
+# SECOND STEP 
 ########################################
 # reading in the necessary information #
 ########################################
@@ -177,24 +284,15 @@ regressors_of_interest  = [True if ('Magic' in n)
 # throw out all rows of regressors of no interest
 label_df        = label_df.iloc[regressors_of_interest]
 label_df = label_df[label_df.Runs.isin(runs_of_interest)]
-# Check for every entry in Regressors if it contains one of the label names. If so, assign the label name
-
+# Check for every entry in Regressors if it contains one of the label names. 
+# If so, assign the label name
 label_df.Labels = np.where(label_df.Regressors.str.contains('Magic'),'Magic',label_df.Labels)
 label_df.Labels = np.where(label_df.Regressors.str.contains('Control'),'NoMagic',label_df.Labels)
 label_df.Labels = np.where(label_df.Regressors.str.contains('Surprise'),'NoMagic',label_df.Labels)
-###########
-# INDICES #
-###########
 
-# Get all the indices we need
-# indices                 = label_df.index # indices of the remaining dataframe
-# magic_indices           = label_df.Labels.str.contains('Magic') # all indices of magic videos
-# post_revelation_indices = label_df.Runs.isin(runs_of_interest)  # all indices of the post revelation runs
-# dropping_indices        = indices[magic_indices & post_revelation_indices] # all indices of Magic labels AND post revelation
-
-# label_df = label_df.drop(dropping_indices)
-
-
+# THIRD STEP
+# read in all beta from regressors of interest (flatten and then combine in on
+# large 2D array)
 betas = []                                              # empty list to store data arrays in
 for b, beta in enumerate(label_df.BetaNames):
     beta_nii    = nib.load(os.path.join(FLA_DIR,beta))  # read in beta NIfTI image
@@ -228,8 +326,8 @@ for r, roi in tqdm(enumerate(ROIS)):
     ROI_data = []
     ROI_data.append([beta[ROI & ~np.isnan(beta)] for beta in betas])
     ROI_data = np.array(ROI_data [0])               # the list comprehension wraps the matrix in an additional, unnecessary array
-    # convert data into z values and cut off data
     
+    # apply scaling and cutoff according to command line input
     if SCALE == 'z':
         # z-transform data within features
         ROI_data = ROI_data - ROI_data.mean(axis=0)
@@ -238,29 +336,33 @@ for r, roi in tqdm(enumerate(ROIS)):
         ROI_data[ROI_data>CUTOFF]   = CUTOFF
         ROI_data[ROI_data<-CUTOFF]  = -CUTOFF
     elif SCALE == 'min0max1':
+        # substract the minimum value (set min=0)
+        # then divide by the maximum value (set max=1)
         ROI_data = ROI_data - ROI_data.min(axis=0)
         ROI_data = ROI_data / ROI_data.max(axis=0)
     elif SCALE == 'mean':
+        # substract the mean (set mean=0)
         ROI_data = ROI_data - ROI_data.mean(axis=0)
-        
+    
+    # apply feature transformation and dimension reduction according to 
+    # command line input
     if FEAT_TRANS == 'PCA':
         n_components = min (ROI_data.shape)
         my_PCA = PCA(n_components=n_components)
         ROI_data = my_PCA.fit_transform(ROI_data)
-
     
     # the actual decoding
     targets                 = np.asarray(label_df.Labels)
     chunks                  = np.asarray(label_df.Chunks)
     runs_for_permutation    = np.asarray(label_df.Runs)
-    if n_permutations > 0:
+    if N_PERMS > 0:
         res = permutation_test_score(
             estimator=my_decoder,
             X=ROI_data,
             y=targets,
             groups=runs_for_permutation,
             cv=PredefinedSplit(chunks),
-            n_permutations=n_permutations,
+            n_permutations=N_PERMS,
             random_state=rng_seed,
             n_jobs=N_PROC,
             verbose=3)
@@ -273,7 +375,7 @@ for r, roi in tqdm(enumerate(ROIS)):
 
     with h5py.File(output_dir, 'w') as f:
         f.create_dataset('accuracy', data=accuracy)
-        if n_permutations > 0:
+        if N_PERMS > 0:
             f.create_dataset('null_distribution', data=null_distribution)
             f.create_dataset('p_value', data=p_value)
             
@@ -283,8 +385,9 @@ for r, roi in tqdm(enumerate(ROIS)):
 del label_df
 del betas
 
+# FOURTH STEP
 decode_accuracy = np.array(decode_accuracy)
-decode_p_value = np.array(decode_p_value)
+decode_p_value  = np.array(decode_p_value)
 
 x = np.arange(len(decode_accuracy))
 ps = decode_p_value<0.05
@@ -303,7 +406,7 @@ git_hash = rep.head.object.hexsha
 # create a log file, that saves some information about the run script
 with open(os.path.join(RESULTS_DIR,'logfile.txt'), 'w+') as writer:
     writer.write('Codeversion: {} \n'.format(git_hash))
-    writer.write('Number of permutations: {}\n'.format(n_permutations))
+    writer.write('Number of permutations: {}\n'.format(N_PERMS))
     writer.write('Number of kernels used: {}\n'.format(str(N_PROC)))
     writer.write('Time for computation: {}h'.format(str((time.time() - T_START)/3600)))
 

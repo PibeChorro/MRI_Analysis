@@ -3,25 +3,88 @@
 ##########
 # HEADER #
 ##########
-# Searchlight decoding analysis with permutations 
-# The data used are beta estimate NIfTI images derived from a GLM using SPM12 
-# in MATLAB. For group analysis purpose we use data normalized to MNI space.
+# The data for this script is derived from an fMRI experiment in which
+# subjects viewed different videos. Either magic, control or surprise videos. 
 # The experiment was devided into 3 blocks. Each block consisted of 4 
 # experimental runs. In each run subjects viewed 24 videos (each video is 
-# considered a trial) of three different categories: Magic, Control and 
-# Surprise.
+# considered a trial).
 # The videos in each block were associated with one object (Balls, Cards and 
 # Sticks) and there were 3 magic effects (Appear, Change and Vanish). For each
 # magic effect and object there are two trick versions (i.e. Appear1, Appear2,
-# Change1,...).
-# There were 6 Magic videos (presented twice each), the other 12 videos are of
-# no interest here. 
+# Change1,...). This resulted in 6 magic videos per object = 18 magic videos 
+# and for every magic video there was a corresponding control video showing
+# the same movements without the magical effect. Additionally per object there
+# were 3 surprise videos showing unusual surprising actions performed with the
+# objects (e.g. eating a playing card).
 # After the second run in each block the underlying method behind each magic 
 # trick was presented.
-# Here I run a searchlight decoding analysis on subject level using either
-# Support Vector Machine (SVM) or Linear Discriminant Analysis (LDA) 
-# classification. The aim is to predict magic effect trained on two objects
-# and test it on the remaining third.
+
+#                       TIME
+#   ---------------------------------->
+#   OBJECT1 R1  R2  Revelation  R3  R4  |
+#   OBJECT2 R1  R2  Revelation  R3  R4  |   TIME
+#   OBJECT3 R1  R2  Revelation  R3  R4  v
+
+# RUNS: 2*Appear1 Magic 2*Appear2 Magic 2*Appear1 Control 2*Appear2 Control
+#       2*Vanish1 Magic 2*Vanish2 Magic 2*Vanish1 Control 2*Vanish2 Control
+#       2*Change1 Magic 2*Change2 Magic 2*Change1 Control 2*Change2 Control
+#       2*Surprise1     2*Surprise2     2*Surprise13
+#       = 24 Videos
+
+# The aim of the experiment was to find neural correlates of surprise and in 
+# particular of surprising events we consider "impossible". 
+# The data used are beta estimate NIfTI images derived from a GLM using SPM12 
+# in MATLAB and is in MNI space. 
+
+##########################
+# PURPOSE OF THIS SCRIPT #
+##########################
+# The purpose of this script is to use a machine learning algorithm to predict
+# the magical effects performed on one object, based on training data from the
+# other two objects. To be able to test for statistical significance, 
+# permutation testing is applied.
+# All this is done for the whole brain, but on a single subject level.
+# In order to analize the whole brain a small sphere is used as a mask. This
+# sphere moves through the whole brain and the decoding accuracy value obtained
+# is assigned to the voxel in the center of the sphere.
+
+################################
+# FUNCTIONALITY OF THIS SCRIPT #
+################################
+# FIRST STEP 
+# Get all important path information and names of magic EFFECTS (Appear, 
+# Change, Vanish) and information about the analysis from command line input.
+# SECOND STEP 
+# Read in the SPM.mat file created by SPM12 when the GLM is estimated.
+# From this SPM.mat file we read out the names of the beta NIfTI images and
+# the names of the regressors, that correspond to the beta image.
+# From the Regressor names the run number (1-12) is extracted and added to the
+# DataFrame. Then all regressors of NO interest (realignment, controll and 
+# surprise videos, etc.) are removed, as well as the data we do not want to
+# test (when analyzing pre revelation data, the post revelation data is removed
+# and vise versa).
+# Again from the Regressor name the label (=the effect) is extracted and added
+# to the dataframe. Finally the chunks are defined. Chunks are needed for cross
+# validation (meaning the whole dataset is sperated in chunks and each chunk is
+# used for testing once).
+# THIRD STEP
+# Perform one Searchlight analysis using the 'real' labels and save the result
+# in a NIfTI file. 
+# Then loop over the number of permutations provided by the command line input
+# and every time shuffle the labels WITHIN THE RUNS (!!!) and again save the
+# result as perm_XXXX_searchlight_result in a NIfTI file.
+
+######################
+# COMMAND LINE FLAGS #
+######################
+# --sub: the subject ID that shall be analyzed
+# --smooth: if the script should read in beta images that are the result of a
+# GLM based on smoothed functional images
+# --algorythm: which algorythm should be used. Currently implemented SVM and LDA
+# --kernels: How many kernels should be used to parallize the permutation testing
+# --runs: Which data should be used. Either pre, post revelation or all data
+# together
+# --perms: How many permutations are applied
 
 #############
 # LIBRARIES #
@@ -53,6 +116,7 @@ import time
 # get start time
 T_START = time.time()
 
+# FIRST STEP
 ################################
 # Command line input arguments #
 ################################
@@ -61,12 +125,18 @@ T_START = time.time()
 parser = argparse.ArgumentParser()
 
 # add all the input arguments
-parser.add_argument("--sub",        "-s",                               default='sub-01')           # subject
-parser.add_argument("--smooth",             nargs='?',  const=0,        default=0,      type=int)   # what data should be used
-parser.add_argument("--algorythm",  "-a",   nargs='?',  const='LDA',    default='LDA',  type=str)
-parser.add_argument("--kernels",    "-k",   nargs='?',  const=12,       default=12,     type=int)   # how many processes should be run in parallel
-parser.add_argument("--runs",       "-r",   nargs="?",  const='pre',    default='pre',  type=str)
-parser.add_argument("--perms",      "-p",   nargs="?",  const=10,       default=10,     type=int)   # how many permutations
+parser.add_argument("--sub",        "-s",                               
+                    default='sub-01')           # subject
+parser.add_argument("--smooth",             nargs='?',  const=0,        
+                    default=0,      type=int)   # what data should be used
+parser.add_argument("--algorythm",  "-a",   nargs='?',  const='LDA',    
+                    default='LDA',  type=str)
+parser.add_argument("--kernels",    "-k",   nargs='?',  const=12,       
+                    default=12,     type=int)   # how many processes should be run in parallel
+parser.add_argument("--runs",       "-r",   nargs="?",  const='pre',    
+                    default='pre',  type=str)
+parser.add_argument("--perms",      "-p",   nargs="?",  const=10,       
+                    default=10,     type=int)   # how many permutations
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
 # assign values 
@@ -77,7 +147,7 @@ DECODER         = ARGS.algorythm
 RUNS_TO_USE     = ARGS.runs
 N_PERMS         = ARGS.perms
 
-# initiate the decoder based on command line input (either LDA (default) or SVM)
+# based on command line flag decide what decoding algorithm should be used
 if DECODER =='LDA':
     my_decoder          = LDA(solver='lsqr', shrinkage='auto')
 elif DECODER == 'SVM':
@@ -99,11 +169,13 @@ elif RUNS_TO_USE == 'all':
 else:
     raise
         
-
-# variables for path selection and data access
+################################################
+# VARIABLES FOR PATH SELECTION AND DATA ACCESS #
+################################################
 HOME            = str(Path.home())
 PROJ_DIR        = os.path.join(HOME, 'Documents/Master_Thesis/DATA/MRI')
 DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
+# where to look for the beta images
 if SMOOTHING_SIZE > 0:
     GLM_DATA_DIR    = str(SMOOTHING_SIZE)+'mm-smoothed-mnispace' 
     FLA_DIR         = os.path.join(DERIVATIVES_DIR,'spm12',
@@ -116,11 +188,13 @@ else:
                                'spm12-fla','WholeBrain',
                                'EveryVideo',GLM_DATA_DIR,
                                'WholeVideo',SUB)
+# where the ROI masks can be found
 FREESURFER_DIR  = os.path.join(DERIVATIVES_DIR, 'freesurfer')
-RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 MASK_DIR        = os.path.join(FLA_DIR, 'mask.nii')
 ROI_DIR         = os.path.join(FREESURFER_DIR,SUB,'corrected_ROIs')
+# where the .mat file can be found created by SPM12
 SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
+# wheret to store the results
 ANALYSIS        = 'SearchLight'
 RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
                                'decode_effect_on_'+RUNS_TO_USE+'magic', 
@@ -140,6 +214,7 @@ print ('Analysing subject: {}'.format(SUB))
 print ('Getting ROIs from:	 {}'.format(FREESURFER_DIR))
 print ('Saving data at:	 {}'.format(RESULTS_DIR))
 
+# SECOND STEP 
 ########################################
 # reading in the necessary information #
 ########################################
@@ -179,6 +254,7 @@ label_df = label_df[label_df.Runs.isin(runs_of_interest)]
 for l in LABEL_NAMES:
     label_df.Labels = np.where(label_df.Regressors.str.contains(l),l,label_df.Labels)
 
+# THIRD STEP
 #######################
 # THE ACTUAL DECODING #
 #######################
