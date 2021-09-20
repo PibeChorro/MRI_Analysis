@@ -198,83 +198,83 @@ PRE_POST = ['pre','post']
 ##############
 # BOXPLOTS ! #
 ##############
-# how much each boxplot should be shifted.
-OFFSETS = [-0.3,0,0.3]
-# an empty list, that will be filled with dictionaries of artists (returned by
-# draw_plot), to later create a legend in the figure
-bps = []
+# # how much each boxplot should be shifted.
+# OFFSETS = [-0.3,0,0.3]
+# # an empty list, that will be filled with dictionaries of artists (returned by
+# # draw_plot), to later create a legend in the figure
+# bps = []
 
-# iterate over ROI subsets, since we want a figure for each subset
-for rs,roi_set in enumerate(ROIS):
-    # figure settings
-    fig, ax = plt.subplots(3,1,sharex=True)
-    fig.set_figwidth(30)
-    fig.set_figheight(30)
+# # iterate over ROI subsets, since we want a figure for each subset
+# for rs,roi_set in enumerate(ROIS):
+#     # figure settings
+#     fig, ax = plt.subplots(3,1,sharex=True)
+#     fig.set_figwidth(30)
+#     fig.set_figheight(30)
     
-    # iterate over effect (Appear, Change, Vanish)
-    for e,eff in enumerate(EFFECTS):
-        # and over conditions (pre, post) to get data from only one effect and
-        # one condition (e.g. Vanish pre) to draw a boxplot from
-        for c,cond in enumerate(PRE_POST):
-            # empty list to be filled with data from one condition and effect
-            # but all subjects. For each ROI in the subset the data will be
-            # appended
-            sub_data = []
+#     # iterate over effect (Appear, Change, Vanish)
+#     for e,eff in enumerate(EFFECTS):
+#         # and over conditions (pre, post) to get data from only one effect and
+#         # one condition (e.g. Vanish pre) to draw a boxplot from
+#         for c,cond in enumerate(PRE_POST):
+#             # empty list to be filled with data from one condition and effect
+#             # but all subjects. For each ROI in the subset the data will be
+#             # appended
+#             sub_data = []
             
-            # iterate over ROIs in subset
-            for roi in roi_set:
-                # select all data from the current roi (DATA_DF.loc[:,roi]) 
-                # but only from the current effect (DATA_DF.Effect==eff) and
-                # the current condition (DATA_DF.pre_post==cond). When using 
-                # more than one 'filter' parentesis are necessary
-                effect_data = DATA_DF.loc[:,roi][(DATA_DF.Effect==eff)&
-                                                  (DATA_DF.pre_post==cond)]
-                sub_data.append(effect_data)
+#             # iterate over ROIs in subset
+#             for roi in roi_set:
+#                 # select all data from the current roi (DATA_DF.loc[:,roi]) 
+#                 # but only from the current effect (DATA_DF.Effect==eff) and
+#                 # the current condition (DATA_DF.pre_post==cond). When using 
+#                 # more than one 'filter' parentesis are necessary
+#                 effect_data = DATA_DF.loc[:,roi][(DATA_DF.Effect==eff)&
+#                                                   (DATA_DF.pre_post==cond)]
+#                 sub_data.append(effect_data)
             
-            # turn sub_data list into an array an transverse it for draw_plot
-            # otherwise you get one boxplot per subject using data from all 
-            # rois
-            sub_data = np.array(sub_data)
-            draw_plot(data=sub_data.T,
-                      ax=ax[c],
-                      offset=OFFSETS[e],
-                      edge_color=COLORS[e],
-                      fill_color='white')
-        # Do the same for pre AND post data
-        sub_data = []
-        # iterate over ROIs in subset
-        for roi in roi_set:
-            # select all data from the current roi (DATA_DF.loc[:,roi]) 
-            # but only from the current effect (DATA_DF.Effect==eff) 
-            effect_data = DATA_DF.loc[:,roi][(DATA_DF.Effect==eff)]
-            sub_data.append(effect_data)
+#             # turn sub_data list into an array an transverse it for draw_plot
+#             # otherwise you get one boxplot per subject using data from all 
+#             # rois
+#             sub_data = np.array(sub_data)
+#             draw_plot(data=sub_data.T,
+#                       ax=ax[c],
+#                       offset=OFFSETS[e],
+#                       edge_color=COLORS[e],
+#                       fill_color='white')
+#         # Do the same for pre AND post data
+#         sub_data = []
+#         # iterate over ROIs in subset
+#         for roi in roi_set:
+#             # select all data from the current roi (DATA_DF.loc[:,roi]) 
+#             # but only from the current effect (DATA_DF.Effect==eff) 
+#             effect_data = DATA_DF.loc[:,roi][(DATA_DF.Effect==eff)]
+#             sub_data.append(effect_data)
         
-        # turn sub_data list into an array an transverse it for draw_plot
-        # otherwise you get one boxplot per subject using data from all 
-        # rois
-        sub_data = np.array(sub_data)
-        bp = draw_plot(data=sub_data.T,
-                  ax=ax[2],
-                  offset=OFFSETS[e],
-                  edge_color=COLORS[e],
-                  fill_color='white')
-        # add the dictionary of artists to bps list. We need only one per 
-        # effect
-        bps.append(bp)
+#         # turn sub_data list into an array an transverse it for draw_plot
+#         # otherwise you get one boxplot per subject using data from all 
+#         # rois
+#         sub_data = np.array(sub_data)
+#         bp = draw_plot(data=sub_data.T,
+#                   ax=ax[2],
+#                   offset=OFFSETS[e],
+#                   edge_color=COLORS[e],
+#                   fill_color='white')
+#         # add the dictionary of artists to bps list. We need only one per 
+#         # effect
+#         bps.append(bp)
     
-    ##################
-    # FIGURE MAKE UP #
-    ##################
-    # create a legend in the each subplot
-    for a in ax: a.legend([b["boxes"][0] for b in bps], EFFECTS)
-    # set the x ticks to the ROIs in subset
-    plt.xticks(np.arange(len(roi_set)),roi_set,rotation=45,fontsize=12)
-    # set title and fontsizes
-    ax[0].set_title('Before revelation', fontsize=25)
-    ax[1].set_title('After revelation', fontsize=25)
-    ax[2].set_title('All data together', fontsize=25)
-    for a in ax: a.tick_params(axis='both',labelsize=20)
-    fig.savefig(os.path.join(DATA_DIR,ROI_SET_NAMES[rs]+'_boxplots.png'))
+#     ##################
+#     # FIGURE MAKE UP #
+#     ##################
+#     # create a legend in the each subplot
+#     for a in ax: a.legend([b["boxes"][0] for b in bps], EFFECTS)
+#     # set the x ticks to the ROIs in subset
+#     plt.xticks(np.arange(len(roi_set)),roi_set,rotation=45,fontsize=12)
+#     # set title and fontsizes
+#     ax[0].set_title('Before revelation', fontsize=25)
+#     ax[1].set_title('After revelation', fontsize=25)
+#     ax[2].set_title('All data together', fontsize=25)
+#     for a in ax: a.tick_params(axis='both',labelsize=20)
+#     fig.savefig(os.path.join(DATA_DIR,ROI_SET_NAMES[rs]+'_boxplots.png'))
 
 ################
 # EFFECT MEANS #
@@ -297,15 +297,15 @@ for r,roi in enumerate(BENSON_ROIS):
     idx = col+row*num_rows+1
     # create subplot and set title, ticks etc.
     ax = fig.add_subplot(num_rows,num_cols,idx)
-    ax.set_title(roi, fontsize=25)
+    ax.set_title(roi, fontsize=35)
     ax.set_xticks([0,1,2])
     ax.set_xticklabels(EFFECTS)
-    ax.tick_params(axis='both',labelsize=20)
+    ax.tick_params(axis='both',labelsize=30)
     # iterate over conditions (pre, post)
     for c,cond in enumerate(PRE_POST):
         # empty list to be filled with the mean of data from one condition 
         means = []
-        stds = []
+        sems = []
         # iterate over effect (Appear, Change, Vanish)
         for e,eff in enumerate(EFFECTS):
             # select all data from the current roi (DATA_DF.loc[:,roi]) 
@@ -315,21 +315,27 @@ for r,roi in enumerate(BENSON_ROIS):
             effect_data = DATA_DF.loc[:,roi][(DATA_DF.Effect==eff)&
                                               (DATA_DF.pre_post==cond)]
             means.append(effect_data.mean())
-            stds.append(effect_data.std())
+            sems.append(effect_data.sem())
         
         # plot the mean value of the effects once with markers and once with
         # a dashed line
         ax.plot(means, color = COLORS[c], marker=MARKERSTYLE[c], label=cond)
         ax.plot(means, color = COLORS[c], linestyle='--')
+        # plot the std of the effects as area
+        sems = np.array(sems)
+        upper = means+sems
+        lower = means-sems
+        ax.fill_between([0,1,2], upper, lower, 
+                        color= COLORS[c], alpha=.2)
         
 # create a nice legend
 legend = plt.legend(title='Legend', 
-                    bbox_to_anchor=(1.3,0), 
+                    bbox_to_anchor=(1.5,0), 
                     loc='lower right', 
-                    fontsize=20)
+                    fontsize=30)
 # fontsize of legend's title is not affected by argument 'fontsize' in function
 # plt.legend. Therefore we change it here
-plt.setp(legend.get_title(),fontsize=20)
+plt.setp(legend.get_title(),fontsize=30)
 fig.savefig(os.path.join(DATA_DIR,'BensonROIs_means.png'))
 
 # figure settings
@@ -349,15 +355,15 @@ for r,roi in enumerate(GLASSER_ROIS):
     idx = col+row*num_rows+1
     # create subplot and set title, ticks etc.
     ax = fig.add_subplot(num_rows,num_cols,idx)
-    ax.set_title(roi, fontsize=25)
+    ax.set_title(roi, fontsize=35)
     ax.set_xticks([0,1,2])
     ax.set_xticklabels(EFFECTS)
-    ax.tick_params(axis='both',labelsize=20)
+    ax.tick_params(axis='both',labelsize=30)
     # iterate over conditions (pre, post)
     for c,cond in enumerate(PRE_POST):
         # empty list to be filled with data from one condition 
         means = []
-        stds = []
+        sems = []
         # iterate over effect (Appear, Change, Vanish)
         for e,eff in enumerate(EFFECTS):
             # select all data from the current roi (DATA_DF.loc[:,roi]) 
@@ -367,17 +373,24 @@ for r,roi in enumerate(GLASSER_ROIS):
             effect_data = DATA_DF.loc[:,roi][(DATA_DF.Effect==eff)&
                                               (DATA_DF.pre_post==cond)]
             means.append(effect_data.mean())
-            stds.append(effect_data.std())
+            sems.append(effect_data.sem())
+        
         # plot the mean value of the effects once with markers and once with
         # a dashed line
         ax.plot(means, color = COLORS[c], marker=MARKERSTYLE[c], label=cond)
         ax.plot(means, color = COLORS[c], linestyle='--')
+        # plot the std of the effects as area
+        sems = np.array(sems)
+        upper = means+sems
+        lower = means-sems
+        ax.fill_between([0,1,2], upper, lower, 
+                        color= COLORS[c], alpha=.2)
 # create a nice legend  
 legend = plt.legend(title='Legend', 
-                    bbox_to_anchor=(0.3,-.4), 
+                    bbox_to_anchor=(1.5,0), 
                     loc='lower right', 
-                    fontsize=20)
+                    fontsize=30)
 # fontsize of legend's title is not affected by argument 'fontsize' in function
 # plt.legend. Therefore we change it here
-plt.setp(legend.get_title(),fontsize=20)
+plt.setp(legend.get_title(),fontsize=30)
 fig.savefig(os.path.join(DATA_DIR,'GlasserROIs_means.png'))

@@ -132,9 +132,11 @@ parser.add_argument("--smooth",             nargs='?',  const=0,
 parser.add_argument("--algorythm",  "-a",   nargs='?',  const='LDA',    
                     default='LDA',  type=str)
 parser.add_argument("--kernels",    "-k",   nargs='?',  const=12,       
-                    default=12,     type=int)   # how many processes should be run in parallel
+                    default=50,     type=int)   # how many processes should be run in parallel
 parser.add_argument("--runs",       "-r",   nargs="?",  const='pre',    
                     default='pre',  type=str)
+parser.add_argument("--analyzed",   nargs='?', const='moment',  
+                    default='moment',   type=str)
 parser.add_argument("--perms",      "-p",   nargs="?",  const=10,       
                     default=10,     type=int)   # how many permutations
 # parse the arguments to a parse-list(???)
@@ -146,6 +148,7 @@ SMOOTHING_SIZE  = ARGS.smooth
 DECODER         = ARGS.algorythm
 RUNS_TO_USE     = ARGS.runs
 N_PERMS         = ARGS.perms
+ANALYZED        = ARGS.analyzed
 
 # based on command line flag decide what decoding algorithm should be used
 if DECODER =='LDA':
@@ -169,6 +172,13 @@ elif RUNS_TO_USE == 'all':
 else:
     raise
         
+if ANALYZED == 'moment':
+    data_analyzed = 'SpecialMoment'
+elif ANALYZED == 'video':
+    data_analyzed = 'WholeVideo'
+else:
+    raise
+    
 ################################################
 # VARIABLES FOR PATH SELECTION AND DATA ACCESS #
 ################################################
@@ -181,24 +191,22 @@ if SMOOTHING_SIZE > 0:
     FLA_DIR         = os.path.join(DERIVATIVES_DIR,'spm12',
                                'spm12-fla','WholeBrain',
                                'EveryVideo',GLM_DATA_DIR,
-                               'WholeVideo',SUB)
+                               data_analyzed ,SUB)
 else:
     GLM_DATA_DIR    = 'mnispace' 
     FLA_DIR         = os.path.join(DERIVATIVES_DIR,'spm12',
                                'spm12-fla','WholeBrain',
                                'EveryVideo',GLM_DATA_DIR,
-                               'WholeVideo',SUB)
-# where the ROI masks can be found
-FREESURFER_DIR  = os.path.join(DERIVATIVES_DIR, 'freesurfer')
+                               data_analyzed ,SUB)
+# where the brain mask for the subjects can be found
 MASK_DIR        = os.path.join(FLA_DIR, 'mask.nii')
-ROI_DIR         = os.path.join(FREESURFER_DIR,SUB,'corrected_ROIs')
 # where the .mat file can be found created by SPM12
 SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
 # wheret to store the results
 ANALYSIS        = 'SearchLight'
 RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
                                'decode_effect_on_'+RUNS_TO_USE+'magic', 
-                               'SpecialMoment', ANALYSIS, DECODER, SUB)
+                               data_analyzed , ANALYSIS, DECODER, SUB)
 OUTPUT_DIR = os.path.join(RESULTS_DIR, 'searchlight_results.nii')   # where to store the results
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
@@ -211,7 +219,6 @@ LABEL_NAMES = [
 ]
     
 print ('Analysing subject: {}'.format(SUB))
-print ('Getting ROIs from:	 {}'.format(FREESURFER_DIR))
 print ('Saving data at:	 {}'.format(RESULTS_DIR))
 
 # SECOND STEP 
@@ -275,7 +282,7 @@ betas = smooth_img(FLA_DIR+'/'+label_df.BetaNames,fwhm=None)
 MY_SEARCH_LIGHT.fit(imgs=betas,y=targets,groups=chunks)
 
 # Form results into a NIfTI 
-results = new_img_like(ref_niimg=betas[0],data=MY_SEARCH_LIGHT.scores_)
+results = new_img_like(ref_niimg=MASK_DIR,data=MY_SEARCH_LIGHT.scores_)
 nib.save(results,OUTPUT_DIR)
 
 ################

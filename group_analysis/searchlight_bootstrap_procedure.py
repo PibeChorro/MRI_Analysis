@@ -82,7 +82,7 @@ import glob
 import numpy as np   # most important numerical calculations
 # library for neuroimaging
 import nibabel as nib
-from nilearn.image import new_img_like
+from nilearn.image import smooth_img, new_img_like
 # optimize time performance
 import time
 
@@ -99,6 +99,8 @@ parser = argparse.ArgumentParser()
 # add all the input arguments
 parser.add_argument("--data",       "-d",   nargs="?",  const='pre',    
                     default='pre',  type=str)
+parser.add_argument("--analyzed",   nargs='?', const='moment',  
+                    default='moment',   type=str)
 parser.add_argument("--bootstraps", "-b",   nargs="?",  const=1000,     
                     default=1000,   type=int)   # how many bootstrapping draws are done for the null statistic
 
@@ -107,13 +109,13 @@ ARGS = parser.parse_args()
 # assign values 
 DATA        = ARGS.data
 BOOTSTRAPPS = ARGS.bootstraps
-
+ANALYZED    = ARGS.analyzed
+    
 HOME            = str(Path.home())
 PROJ_DIR        = os.path.join(HOME, 'Documents/Master_Thesis/DATA/MRI')
 DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
 
 RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
-ANALYSIS        = 'ROI-analysis'
 if DATA == 'pre':
     DATA_TO_USE = 'decode_effect_on_premagic'
     NUM_LABELS  = 3
@@ -131,16 +133,79 @@ elif DATA == 'mag-nomag':
     NUM_LABELS  = 2
 else:
     raise
+
+if ANALYZED == 'moment':
+    data_analyzed = 'SpecialMoment'
+elif ANALYZED == 'video':
+    data_analyzed = 'WholeVideo'
+else:
+    raise
+    
 DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
-                               DATA_TO_USE, 'SpecialMoment','SearchLight','LDA')
+                               DATA_TO_USE, data_analyzed,'SearchLight','LDA')
 RESULTS_DIR     = os.path.join(DATA_DIR,'group-statistics')
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
+    
+# set random seed generator for reproducable results
+rnd_seed = 1234
+np.random.seed(rnd_seed)
 
 null_distribution = []
 
 SUBJECTS = glob.glob(os.path.join(DATA_DIR,'sub-*'))
 SUBJECTS.sort()
+
+##############################################################################
+# alternative version to get the real mean accuracy map and the bootstrapped #
+# chance accuracy maps                                                       #
+##############################################################################
+
+# mean_accuracy_dirs = [os.path.join(sub,'searchlight_results.nii')
+#                       for sub in SUBJECTS]
+# accuracy_maps = smooth_img(mean_accuracy_dirs, fwhm=None)
+# mean_accuracy_map = []
+# for acc_map in accuracy_maps:
+#     img_data = acc_map.get_fdata()
+#     mean_accuracy_map.append(img_data)
+# # convert list to array and calculate the mean
+# mean_accuracy_map = np.array(mean_accuracy_map)
+# mean_accuracy_map = mean_accuracy_map.mean(axis=0)
+
+# for draw in range(BOOTSTRAPPS):
+#     # fill empty list with paths of randomly selected permutation images of 
+#     # all subjects
+#     perm_classification_dirs = []
+#     for sub in SUBJECTS:
+#         # get all permuted accuracy maps of current subject and sort them
+#         perm_images     = glob.glob(os.path.join(sub,'perm*.nii'))
+#         perm_images.sort()
+#         # get a random number between 0 and number of permuted maps
+#         rnd_perm_map    = np.random.randint(0,len(perm_images))
+#         # add the randomly choosen permutation map to the list
+#         perm_classification_dirs.append(perm_images[rnd_perm_map])
+    
+#     # read in the randomly selected images
+#     perm_classification_images = smooth_img(perm_classification_dirs,fwhm=None)
+    
+#     # iterate over images and append the data to an empty list
+#     perm_classification_maps = []
+#     for img in perm_classification_images:
+#         img_data = img.get_fdata()
+#         perm_classification_maps.append(img_data)
+        
+#     # calculate mean of list and save created mean image
+#     perm_mean_accuracy_map  = perm_classification_images.mean(axis=0)
+#     results                 = new_img_like(ref_niimg=img,
+#                                            data=perm_mean_accuracy_map)
+    
+#     nib.save(results,os.path.join(RESULTS_DIR,
+#                                   'bootstrapped_{:04d}mean_accuracy.nii'.format(draw)))
+
+# ADVANTAGE: One can FIRST smooth the individual accuracy maps and THEN 
+# calculate the mean. Now there is no smoothing here but in the 
+# searchlight_cluster_statistic.py script
+##############################################################################
 
 # get the real mean decoding accuracy 
 mean_accuracy_map = []
@@ -154,8 +219,8 @@ for sub in SUBJECTS:
 mean_accuracy_map = np.array(mean_accuracy_map)
 mean_accuracy_map = mean_accuracy_map.mean(axis=0)
 # save as NIfTI file
-results = new_img_like(ref_niimg=img,data=mean_accuracy_map)
-nib.save(results,os.path.join(RESULTS_DIR,'mean_accuracy.nii'))
+results = new_img_like(ref_niimg=img, data=mean_accuracy_map)
+nib.save(results,os.path.join(RESULTS_DIR, 'mean_accuracy.nii'))
 
 # Using the inference method described in Stelzer (2013)
 # From each subject randomly select one permutation image and create a mean
@@ -181,7 +246,15 @@ for draw in range(BOOTSTRAPPS):
     perm_mean_accuracy_map      = perm_classification_images.mean(axis=0)
     results = new_img_like(ref_niimg=img,data=perm_mean_accuracy_map)
     
-    nib.save(results,os.path.join(RESULTS_DIR,
-                                  'perm_{:04d}mean_accuracy.nii'.format(draw)))
-print ('Time for analysis:')
-print ((time.time()-T_START)/3600)
+    nib.save(results,
+             os.path.join(RESULTS_DIR,
+                          'bootstrapped_{:04d}mean_accuracy.nii'.format(draw)))
+
+rep = git.Repo(os.getcwd(),search_parent_directories=True)
+git_hash = rep.head.object.hexsha
+
+# create a log file, that saves some information about the run script
+with open(os.path.join(RESULTS_DIR,'bootstrapping-logfile.txt'), 'w+') as writer:
+    writer.write('Codeversion: {} \n'.format(git_hash))
+    writer.write('Random seed generator: {}\n'.format(rnd_seed))
+    writer.write('Time for computation: {}h'.format(str((time.time() - T_START)/3600)))

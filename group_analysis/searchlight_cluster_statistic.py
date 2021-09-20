@@ -92,7 +92,7 @@ import glob
 import numpy as np   # most important numerical calculations
 # library for neuroimaging
 import nibabel as nib
-from nilearn.image import new_img_like
+from nilearn.image import smooth_img, new_img_like
 # optimize time performance
 import time
 from multiprocessing import Pool
@@ -167,7 +167,7 @@ def largestRegion(M):
  
     # Initialize result as 0 and travesle
     # through the all cells of given matrix
-    result = []
+    cluster_sizes = []
     all_cluster_indices = []
     for i in range(ROW):
         for j in range(COL):
@@ -183,8 +183,8 @@ def largestRegion(M):
                     all_cluster_indices.append(clust_indices)
      
                     # maximum region
-                    result.append(count[0])
-    return result, all_cluster_indices
+                    cluster_sizes.append(count[0])
+    return all_cluster_indices, cluster_sizes
 
 # get start time
 T_START = time.time()
@@ -199,12 +199,14 @@ parser = argparse.ArgumentParser()
 # add all the input arguments
 parser.add_argument("--data",       "-d",   nargs="?",  const='pre',    
                     default='pre',  type=str)
+parser.add_argument("--analyzed",   nargs='?', const='moment',  
+                    default='moment',   type=str)
 
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
 # assign values 
 DATA     = ARGS.data
-
+ANALYZED = ARGS.analyzed
 
 # variables for path selection and data access
 HOME            = str(Path.home())
@@ -225,35 +227,32 @@ elif DATA == 'mag-nomag':
     DATA_TO_USE = 'magic_vs_nomagic'
 else:
     raise
+    
+if ANALYZED == 'moment':
+    data_analyzed = 'SpecialMoment'
+elif ANALYZED == 'video':
+    data_analyzed = 'WholeVideo'
+else:
+    raise
+  
 DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
-                               DATA_TO_USE, 'SpecialMoment','SearchLight','LDA')
+                               DATA_TO_USE, data_analyzed, 'SearchLight','LDA')
 RESULTS_DIR     = os.path.join(DATA_DIR,'group-statistics')
-BOOTSTRAPPS     = glob.glob(os.path.join(RESULTS_DIR,'perm_*'))
+BOOTSTRAPPS     = glob.glob(os.path.join(RESULTS_DIR,'bootstrapped_*'))
 
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
 # SECOND STEP    
-CRIT_P_VAL          = 0.001 # FOR NOW! change after larger bootstrap method
+CRIT_P_VAL          = 0.001 
+PERCENTILE          = 100 - 100*CRIT_P_VAL
 CLUSTER_SIZE_ALPHA  = 0.05  # CHECK FOR THE VALUE IN THE PAPER
-
-# p=(C+1)/(N+1)
-# p: p-value
-# C: Number of accuracies better than the 'original' accuray
-# N: Number of permutations
-# ==> C = p*(N+1)-1
-# C is the index of the bootstrap array which's value depicts the cirtical 
-# value that is considered significant
-# With a large N we can simplify it to C = p*N
-
-crit_acc_idx = CRIT_P_VAL*len(BOOTSTRAPPS)
-crit_acc_idx = round(crit_acc_idx)
 
 # get the real mean decoding accuracy 
 mean_accuracy_path = os.path.join(RESULTS_DIR,'mean_accuracy.nii')
-img                 = nib.load(mean_accuracy_path)
-mean_accuracy_map   = img.get_fdata()                  # get data from NIfTI image
-img.uncache() 
+mean_img           = smooth_img(mean_accuracy_path,fwhm=4)
+mean_accuracy_map  = mean_img.get_fdata()                  # get data from NIfTI image
+mean_img.uncache() 
 
 # get dimensions of mean_accuracy_map to know the dimensions of all used chance
 # distribution maps
@@ -267,63 +266,57 @@ BRAIN_DIMENSIONS = mean_accuracy_map.shape
 # Since it would take too much memory to read in all chance distribution maps
 # at once to calculate voxel-wise threshold values, we do it slice by slice
 
-# empty list where the voxel-wise threshold value slices are stored in
-crit_acc_value_map = []
-for sl in range(BRAIN_DIMENSIONS[0]):
+# empty list to store permuted slices into
+perm_classification_images  = smooth_img(BOOTSTRAPPS,fwhm=None)
+perm_classification_maps    = []
+for d,draw in enumerate(perm_classification_images):
+    if d%50 == 0:
+        print('Reading in img Nr' + str(d))
+    img_data        = draw.get_fdata()   # get data from NIfTI image
+    perm_classification_maps.append(img_data)
+    del img_data
 
-    # empty list to store permuted slices into
-    perm_classification_slices = []
-    for draw in BOOTSTRAPPS:
-        img             = nib.load(draw)
-        img_data        = img.get_fdata()   # get data from NIfTI image
-        img.uncache() 
-        perm_classification_slices.append(img_data[sl])
-        
-    perm_classification_slices  = np.array(perm_classification_slices)
-    sorted_perm_class_images    = perm_classification_slices.copy()
-    sorted_perm_class_images.sort(axis=0)
-    
-    crit_acc_value_map.append(sorted_perm_class_images[-crit_acc_idx])
-    
-crit_acc_value_map = np.array(crit_acc_value_map)
+# A map storing the individual accuracy values for each voxel that is 
+# considered significant (the percentile is used)
+crit_acc_value_map = np.percentile(perm_classification_maps,
+                                   PERCENTILE,
+                                   axis=0)
 
 # save map consisting of critical values
-results = new_img_like(ref_niimg=img,data=crit_acc_value_map)
+results = new_img_like(ref_niimg=mean_img,
+                       data=crit_acc_value_map)
 nib.save(results,os.path.join(RESULTS_DIR, 'crit_acc_value_map.nii'))
-
-# delete the copy of perm_classification_images, once it is not needed anymore
-# it takes up a bunch of RAM!
-del sorted_perm_class_images
 
 # THIRD STEP
 # Get cluster_sizes and locations in the mean accuracy maps
-decoding_cluster_sizes, cluster_indices = largestRegion(mean_accuracy_map>crit_acc_value_map)
+sig_voxel_map = mean_accuracy_map>crit_acc_value_map
+# save the significant voxel map
+results = new_img_like(ref_niimg=mean_img,
+                       data=sig_voxel_map)
+nib.save(results,os.path.join(RESULTS_DIR, 'significant_voxels_map.nii'))
 
-# with Pool(25) as pool:
-#     for cl_size,_ in pool.map(largestRegion,tmp_bool):
-#         perm_cluster_sizes.extend(cl_size)
+cluster_indices, decoding_cluster_sizes = largestRegion(sig_voxel_map)
 
 #############################################
 # get 'null distribution' of cluster sizes: #
 #############################################
 # Do so by iterate over all chance distributions and read them in one after
 # another
+perm_significant_maps = perm_classification_maps>crit_acc_value_map
 
 # empty list to store cluster sizes in
 perm_cluster_sizes = []
 # Use multiprocessing.Pool to make it faster
 with Pool(25) as pool:
-     for img in pool.map(nib.load,BOOTSTRAPPS):
-         perm_cl = img.get_fdata()
-         tmp_bool = perm_cl>crit_acc_value_map
-         cl_size,_ = largestRegion(tmp_bool)
-         perm_cluster_sizes.extend(cl_size)
+    for cl_size in pool.map(largestRegion,perm_significant_maps):
+        perm_cluster_sizes.extend(cl_size[1])
         
-img.uncache()
-del tmp_bool
+del perm_significant_maps
+        
 # normalize histogram of cluster sizes: 
 # (occurence/total number of detected clusters)
-cluster_sizes, cluster_counts   = np.unique(perm_cluster_sizes,return_counts=True)
+cluster_sizes, cluster_counts   = np.unique(perm_cluster_sizes,
+                                            return_counts=True)
 cluster_sizes                   = np.flip(cluster_sizes)
 norm_cluster_hist               = cluster_counts/len(perm_cluster_sizes)
 # flip normalized cluster histogram to calculate p-values for cluster sizes
@@ -355,13 +348,8 @@ for c,clust in enumerate(cluster_indices):
             # a original accuracy
             # First: calculate normalized chance distribution for the specific
             # voxel in question
-            perm_classification_voxel = []
-            for draw in BOOTSTRAPPS:
-                img             = nib.load(draw)
-                img_data        = img.get_fdata()   # get data from NIfTI image
-                img.uncache() 
-                perm_classification_voxel.append(img_data[voxel])
-            chance_accuracies = perm_classification_voxel
+            chance_accuracies = [item[voxel[0],voxel[1],voxel[2]]
+                                 for item in perm_classification_maps]
             normed_chance_dist = chance_accuracies/sum(chance_accuracies)
             
             # read out the 'real' decoding accuracy
@@ -372,7 +360,8 @@ for c,clust in enumerate(cluster_indices):
             p_voxel_map[voxel[0],voxel[1],voxel[2]] = tmp_p_val
 
 # save map consisting of critical values
-results = new_img_like(ref_niimg=img,data=p_voxel_map)
+results = new_img_like(ref_niimg=
+                       mean_img,data=p_voxel_map)
 nib.save(results,os.path.join(RESULTS_DIR, 'voxel_p-value_map.nii'))
 
 # from generated normalized null distribution create a histogram
