@@ -200,7 +200,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--data",       "-d",   nargs="?",  const='pre',    
                     default='pre',  type=str)
 parser.add_argument("--analyzed",   nargs='?', const='moment',  
-                    default='moment',   type=str)
+                    default='video',   type=str)
 
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
@@ -244,15 +244,18 @@ if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
 # SECOND STEP    
-CRIT_P_VAL          = 0.001 
+CRIT_P_VAL          = 0.005
 PERCENTILE          = 100 - 100*CRIT_P_VAL
 CLUSTER_SIZE_ALPHA  = 0.05  # CHECK FOR THE VALUE IN THE PAPER
+SMOOTH_KERNEL_SIZE  = 4
 
 # get the real mean decoding accuracy 
 mean_accuracy_path = os.path.join(RESULTS_DIR,'mean_accuracy.nii')
-mean_img           = smooth_img(mean_accuracy_path,fwhm=4)
-mean_accuracy_map  = mean_img.get_fdata()                  # get data from NIfTI image
+mean_img           = smooth_img(mean_accuracy_path,fwhm=SMOOTH_KERNEL_SIZE)
+mean_accuracy_map  = mean_img.get_fdata()       # get data from NIfTI image
 mean_img.uncache() 
+
+# set unreasonable values (below chance to zero)
 
 # get dimensions of mean_accuracy_map to know the dimensions of all used chance
 # distribution maps
@@ -267,18 +270,18 @@ BRAIN_DIMENSIONS = mean_accuracy_map.shape
 # at once to calculate voxel-wise threshold values, we do it slice by slice
 
 # empty list to store permuted slices into
-perm_classification_images  = smooth_img(BOOTSTRAPPS,fwhm=None)
-perm_classification_maps    = []
-for d,draw in enumerate(perm_classification_images):
+boot_classification_images  = smooth_img(BOOTSTRAPPS,fwhm=SMOOTH_KERNEL_SIZE)
+boot_classification_maps    = []
+for d,draw in enumerate(boot_classification_images):
     if d%50 == 0:
         print('Reading in img Nr' + str(d))
     img_data        = draw.get_fdata()   # get data from NIfTI image
-    perm_classification_maps.append(img_data)
+    boot_classification_maps.append(img_data)
     del img_data
 
 # A map storing the individual accuracy values for each voxel that is 
 # considered significant (the percentile is used)
-crit_acc_value_map = np.percentile(perm_classification_maps,
+crit_acc_value_map = np.percentile(boot_classification_maps,
                                    PERCENTILE,
                                    axis=0)
 
@@ -302,7 +305,7 @@ cluster_indices, decoding_cluster_sizes = largestRegion(sig_voxel_map)
 #############################################
 # Do so by iterate over all chance distributions and read them in one after
 # another
-perm_significant_maps = perm_classification_maps>crit_acc_value_map
+perm_significant_maps = boot_classification_maps>crit_acc_value_map
 
 # empty list to store cluster sizes in
 perm_cluster_sizes = []
@@ -349,7 +352,7 @@ for c,clust in enumerate(cluster_indices):
             # First: calculate normalized chance distribution for the specific
             # voxel in question
             chance_accuracies = [item[voxel[0],voxel[1],voxel[2]]
-                                 for item in perm_classification_maps]
+                                 for item in boot_classification_maps]
             normed_chance_dist = chance_accuracies/sum(chance_accuracies)
             
             # read out the 'real' decoding accuracy
