@@ -135,7 +135,7 @@ parser.add_argument("--kernels",    "-k",   nargs='?',  const=12,
                     default=50,     type=int)   # how many processes should be run in parallel
 parser.add_argument("--runs",       "-r",   nargs="?",  const='pre',    
                     default='pre',  type=str)
-parser.add_argument("--analyzed",   nargs='?', const='moment',  
+parser.add_argument("--analyzed",           nargs='?', const='moment',  
                     default='moment',   type=str)
 parser.add_argument("--perms",      "-p",   nargs="?",  const=10,       
                     default=10,     type=int)   # how many permutations
@@ -191,17 +191,17 @@ if SMOOTHING_SIZE > 0:
     FLA_DIR         = os.path.join(DERIVATIVES_DIR,'spm12',
                                'spm12-fla','WholeBrain',
                                'EveryVideo',GLM_DATA_DIR,
-                               data_analyzed ,SUB)
+                               data_analyzed)
 else:
     GLM_DATA_DIR    = 'mnispace' 
     FLA_DIR         = os.path.join(DERIVATIVES_DIR,'spm12',
                                'spm12-fla','WholeBrain',
                                'EveryVideo',GLM_DATA_DIR,
-                               data_analyzed ,SUB)
+                               data_analyzed)
 # where the brain mask for the subjects can be found
-MASK_DIR        = os.path.join(FLA_DIR, 'mask.nii')
+MASK_DIR        = os.path.join(FLA_DIR, 'group_mask.nii')
 # where the .mat file can be found created by SPM12
-SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
+SPM_MAT_DIR     = os.path.join(FLA_DIR, SUB, 'SPM.mat')
 # wheret to store the results
 ANALYSIS        = 'SearchLight'
 RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
@@ -276,7 +276,7 @@ MY_SEARCH_LIGHT = SearchLight(mask_img=MASK_DIR,
                              n_jobs=N_PROC,
                              cv=PredefinedSplit(chunks),
                              verbose=3)
-betas = smooth_img(FLA_DIR+'/'+label_df.BetaNames,fwhm=None)
+betas = smooth_img(FLA_DIR+ '/' + SUB +'/'+label_df.BetaNames,fwhm=None)
 # fit the decoding object based on the previously loaded betas and labes
 # perform cross validation over objects
 MY_SEARCH_LIGHT.fit(imgs=betas,y=targets,groups=chunks)
