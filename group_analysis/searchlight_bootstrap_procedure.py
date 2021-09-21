@@ -99,8 +99,8 @@ parser = argparse.ArgumentParser()
 # add all the input arguments
 parser.add_argument("--data",       "-d",   nargs="?",  const='pre',    
                     default='pre',  type=str)
-parser.add_argument("--analyzed",   nargs='?', const='moment',  
-                    default='moment',   type=str)
+parser.add_argument("--analyzed",           nargs='?', const='moment',  
+                    default='video',   type=str)
 parser.add_argument("--bootstraps", "-b",   nargs="?",  const=1000,     
                     default=1000,   type=int)   # how many bootstrapping draws are done for the null statistic
 
@@ -141,9 +141,29 @@ elif ANALYZED == 'video':
 else:
     raise
     
+SMOOTHING_SIZE = 0
+# where to look for the beta images
+if SMOOTHING_SIZE > 0:
+    GLM_DATA_DIR    = str(SMOOTHING_SIZE)+'mm-smoothed-mnispace' 
+    FLA_DIR         = os.path.join(DERIVATIVES_DIR,'spm12',
+                               'spm12-fla','WholeBrain',
+                               'EveryVideo',GLM_DATA_DIR,
+                               data_analyzed)
+else:
+    GLM_DATA_DIR    = 'mnispace' 
+    FLA_DIR         = os.path.join(DERIVATIVES_DIR,'spm12',
+                               'spm12-fla','WholeBrain',
+                               'EveryVideo',GLM_DATA_DIR,
+                               data_analyzed)
+    
+MASK_DIR    = os.path.join(FLA_DIR, 'group_mask.nii')
+MASK_IMG    = nib.load(MASK_DIR)
+MASK        = MASK_IMG.get_fdata()
+MASK        = np.array(MASK,dtype=bool)
+    
 DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
                                DATA_TO_USE, data_analyzed,'SearchLight','LDA')
-RESULTS_DIR     = os.path.join(DATA_DIR,'group-statistics')
+RESULTS_DIR     = os.path.join(DATA_DIR, 'group-statistics')
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
     
@@ -212,6 +232,7 @@ mean_accuracy_map = []
 for sub in SUBJECTS:
     img         = nib.load(os.path.join(sub,'searchlight_results.nii'))
     img_data    = img.get_fdata()                  # get data from NIfTI image
+    img_data[~MASK] = 0
     img.uncache() 
     mean_accuracy_map.append(img_data)
     
