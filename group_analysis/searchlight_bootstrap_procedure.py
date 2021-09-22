@@ -82,7 +82,8 @@ import glob
 import numpy as np   # most important numerical calculations
 # library for neuroimaging
 import nibabel as nib
-from nilearn.image import smooth_img, new_img_like
+from nilearn.image import new_img_like
+from nipype.interfaces.fsl.preprocess import SUSAN
 # optimize time performance
 import time
 
@@ -141,20 +142,13 @@ elif ANALYZED == 'video':
 else:
     raise
     
-SMOOTHING_SIZE = 0
-# where to look for the beta images
-if SMOOTHING_SIZE > 0:
-    GLM_DATA_DIR    = str(SMOOTHING_SIZE)+'mm-smoothed-mnispace' 
-    FLA_DIR         = os.path.join(DERIVATIVES_DIR,'spm12',
-                               'spm12-fla','WholeBrain',
-                               'EveryVideo',GLM_DATA_DIR,
-                               data_analyzed)
-else:
-    GLM_DATA_DIR    = 'mnispace' 
-    FLA_DIR         = os.path.join(DERIVATIVES_DIR,'spm12',
-                               'spm12-fla','WholeBrain',
-                               'EveryVideo',GLM_DATA_DIR,
-                               data_analyzed)
+SMOOTHING_SIZE = 4
+
+GLM_DATA_DIR    = 'mnispace' 
+FLA_DIR         = os.path.join(DERIVATIVES_DIR,'spm12',
+                           'spm12-fla','WholeBrain',
+                           'EveryVideo',GLM_DATA_DIR,
+                           data_analyzed)
     
 MASK_DIR    = os.path.join(FLA_DIR, 'group_mask.nii')
 MASK_IMG    = nib.load(MASK_DIR)
@@ -175,6 +169,11 @@ null_distribution = []
 
 SUBJECTS = glob.glob(os.path.join(DATA_DIR,'sub-*'))
 SUBJECTS.sort()
+
+smooth = SUSAN()
+smooth.inputs.fwhm        = SMOOTHING_SIZE
+smooth.inputs.brightness_threshold = 0.1
+smooth.inputs.output_type = 'NIFTI'
 
 ##############################################################################
 # alternative version to get the real mean accuracy map and the bootstrapped #
@@ -242,7 +241,10 @@ mean_accuracy_map = mean_accuracy_map.mean(axis=0)
 # save as NIfTI file
 results = new_img_like(ref_niimg=img, data=mean_accuracy_map)
 nib.save(results,os.path.join(RESULTS_DIR, 'mean_accuracy.nii'))
-
+smooth.inputs.in_file     = os.path.join(RESULTS_DIR,'mean_accuracy.nii')
+smooth.inputs.out_file = os.path.join(RESULTS_DIR,'s'+str(SMOOTHING_SIZE) +'mean_accuracy.nii')
+smooth.run()
+os.remove(os.path.join(RESULTS_DIR, 'mean_accuracy.nii'))
 # Using the inference method described in Stelzer (2013)
 # From each subject randomly select one permutation image and create a mean
 # over subjects. Do this several times (10^5 was used in Stelzer) and get a 
@@ -269,6 +271,13 @@ for draw in range(BOOTSTRAPPS):
     
     nib.save(results,
              os.path.join(RESULTS_DIR,
+                          'bootstrapped_{:04d}mean_accuracy.nii'.format(draw)))
+    smooth.inputs.in_file     = os.path.join(RESULTS_DIR,
+                          'bootstrapped_{:04d}mean_accuracy.nii'.format(draw))
+    smooth.inputs.out_file = os.path.join(RESULTS_DIR,
+                          's'+str(SMOOTHING_SIZE) +'bootstrapped_{:04d}mean_accuracy.nii'.format(draw))
+    smooth.run()
+    os.remove(os.path.join(RESULTS_DIR,
                           'bootstrapped_{:04d}mean_accuracy.nii'.format(draw)))
 
 rep = git.Repo(os.getcwd(),search_parent_directories=True)
