@@ -84,6 +84,7 @@
 
 # interact with the operating system 
 import os
+import sys
 import argparse
 from pathlib import Path
 import git
@@ -198,9 +199,9 @@ parser = argparse.ArgumentParser()
 
 # add all the input arguments
 parser.add_argument("--data",       "-d",   nargs="?",  const='pre',    
-                    default='pre',  type=str)
+                    default='all',  type=str)
 parser.add_argument("--analyzed",   nargs='?', const='moment',  
-                    default='video',   type=str)
+                    default='moment',   type=str)
 
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
@@ -238,19 +239,19 @@ else:
 DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
                                DATA_TO_USE, data_analyzed, 'SearchLight','LDA')
 RESULTS_DIR     = os.path.join(DATA_DIR,'group-statistics')
-BOOTSTRAPPS     = glob.glob(os.path.join(RESULTS_DIR,'bootstrapped_*'))
+BOOTSTRAPPS     = glob.glob(os.path.join(RESULTS_DIR,'s4bootstrapped_*'))
 
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
 # SECOND STEP    
-CRIT_P_VAL          = 0.005
+CRIT_P_VAL          = 0.001
 PERCENTILE          = 100 - 100*CRIT_P_VAL
 CLUSTER_SIZE_ALPHA  = 0.05  # CHECK FOR THE VALUE IN THE PAPER
-SMOOTH_KERNEL_SIZE  = 4
+SMOOTH_KERNEL_SIZE  = None
 
 # get the real mean decoding accuracy 
-mean_accuracy_path = os.path.join(RESULTS_DIR,'mean_accuracy.nii')
+mean_accuracy_path = os.path.join(RESULTS_DIR,'s4mean_accuracy.nii')
 mean_img           = smooth_img(mean_accuracy_path,fwhm=SMOOTH_KERNEL_SIZE)
 mean_accuracy_map  = mean_img.get_fdata()       # get data from NIfTI image
 mean_img.uncache() 
@@ -273,7 +274,7 @@ BRAIN_DIMENSIONS = mean_accuracy_map.shape
 boot_classification_images  = smooth_img(BOOTSTRAPPS,fwhm=SMOOTH_KERNEL_SIZE)
 boot_classification_maps    = []
 for d,draw in enumerate(boot_classification_images):
-    if d%50 == 0:
+    if d%500 == 0:
         print('Reading in img Nr' + str(d))
     img_data        = draw.get_fdata()   # get data from NIfTI image
     boot_classification_maps.append(img_data)
@@ -292,12 +293,11 @@ nib.save(results,os.path.join(RESULTS_DIR, 'crit_acc_value_map.nii'))
 
 # THIRD STEP
 # Get cluster_sizes and locations in the mean accuracy maps
+# EXTRA STEP: set maximum recursion depth to number of voxels exceeding 
+# significant threshold
 sig_voxel_map = mean_accuracy_map>crit_acc_value_map
-# save the significant voxel map
-results = new_img_like(ref_niimg=mean_img,
-                       data=sig_voxel_map)
-nib.save(results,os.path.join(RESULTS_DIR, 'significant_voxels_map.nii'))
-
+num_sig_voxel = sig_voxel_map.sum(axis=None)
+sys.setrecursionlimit(num_sig_voxel)
 cluster_indices, decoding_cluster_sizes = largestRegion(sig_voxel_map)
 
 #############################################
@@ -305,6 +305,7 @@ cluster_indices, decoding_cluster_sizes = largestRegion(sig_voxel_map)
 #############################################
 # Do so by iterate over all chance distributions and read them in one after
 # another
+# A bool 4D array giving significant voxels for a specific bootstrap
 perm_significant_maps = boot_classification_maps>crit_acc_value_map
 
 # empty list to store cluster sizes in
@@ -320,18 +321,27 @@ del perm_significant_maps
 # (occurence/total number of detected clusters)
 cluster_sizes, cluster_counts   = np.unique(perm_cluster_sizes,
                                             return_counts=True)
-cluster_sizes                   = np.flip(cluster_sizes)
 norm_cluster_hist               = cluster_counts/len(perm_cluster_sizes)
 # flip normalized cluster histogram to calculate p-values for cluster sizes
 norm_cluster_hist = np.flip(norm_cluster_hist)
 # calculate p-values for cluster sizes: p_cluster = sum_{s'>s} H_cluster(s')
 # where H_cluster is the normalized histogram 
-p_cluster = [sum(norm_cluster_hist[0:i]) 
+p_cluster = [sum(norm_cluster_hist[0:i+1]) 
              for i in range(len(norm_cluster_hist))]
 p_cluster = np.array(p_cluster)
 
-sig_cluster_sizes       = cluster_sizes[p_cluster<CLUSTER_SIZE_ALPHA]
-cluster_size_threshold  = min(sig_cluster_sizes)
+sig_cluster_sizes_uncor         = cluster_sizes[p_cluster<CLUSTER_SIZE_ALPHA]
+cluster_size_threshold_uncor    = min(sig_cluster_sizes_uncor)
+
+# Get the FDR corrected cluster size. Check if the i-th p-value is smaller than
+# alpha/(number of tests - i). A soon as it gets larger than that you stop.
+for p_idx, p_clu in enumerate(p_cluster):
+    test = p_clu<CLUSTER_SIZE_ALPHA/(len(p_cluster)-p_idx)
+    if not test:
+        break
+    
+sig_cluster_sizes_cor         = cluster_sizes[p_idx-1:]
+cluster_size_threshold_cor    = min(sig_cluster_sizes_cor)
 
 # FOURTH STEP
 # create a zero matrix with MNI dimensions to create a map that stores p-values
@@ -342,7 +352,7 @@ p_voxel_map = np.zeros(shape=mean_accuracy_map.shape)
 for c,clust in enumerate(cluster_indices):
     # if the cluster size is larger than the cluster theshold calculate the
     # p-value for each voxel in the cluster
-    if decoding_cluster_sizes[c]>cluster_size_threshold:
+    if decoding_cluster_sizes[c]>cluster_size_threshold_cor:
         # go through the voxels in your significant cluster
         for voxel in clust:
             # calculate voxel-wise p-values for these clusters: 
@@ -360,7 +370,7 @@ for c,clust in enumerate(cluster_indices):
             
             # calculate p-value and store it in the p-value map
             tmp_p_val = sum(normed_chance_dist[chance_accuracies>real_accuracy])
-            p_voxel_map[voxel[0],voxel[1],voxel[2]] = tmp_p_val
+            p_voxel_map[voxel[0],voxel[1],voxel[2]] = 1
 
 # save map consisting of critical values
 results = new_img_like(ref_niimg=

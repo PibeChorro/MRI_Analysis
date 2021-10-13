@@ -101,9 +101,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--data",       "-d",   nargs="?",  const='pre',    
                     default='pre',  type=str)
 parser.add_argument("--analyzed",           nargs='?', const='moment',  
-                    default='video',   type=str)
+                    default='moment',   type=str)
 parser.add_argument("--bootstraps", "-b",   nargs="?",  const=1000,     
-                    default=1000,   type=int)   # how many bootstrapping draws are done for the null statistic
+                    default=10000,   type=int)   # how many bootstrapping draws are done for the null statistic
 
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
@@ -175,57 +175,6 @@ smooth.inputs.fwhm        = SMOOTHING_SIZE
 smooth.inputs.brightness_threshold = 0.1
 smooth.inputs.output_type = 'NIFTI'
 
-##############################################################################
-# alternative version to get the real mean accuracy map and the bootstrapped #
-# chance accuracy maps                                                       #
-##############################################################################
-
-# mean_accuracy_dirs = [os.path.join(sub,'searchlight_results.nii')
-#                       for sub in SUBJECTS]
-# accuracy_maps = smooth_img(mean_accuracy_dirs, fwhm=None)
-# mean_accuracy_map = []
-# for acc_map in accuracy_maps:
-#     img_data = acc_map.get_fdata()
-#     mean_accuracy_map.append(img_data)
-# # convert list to array and calculate the mean
-# mean_accuracy_map = np.array(mean_accuracy_map)
-# mean_accuracy_map = mean_accuracy_map.mean(axis=0)
-
-# for draw in range(BOOTSTRAPPS):
-#     # fill empty list with paths of randomly selected permutation images of 
-#     # all subjects
-#     perm_classification_dirs = []
-#     for sub in SUBJECTS:
-#         # get all permuted accuracy maps of current subject and sort them
-#         perm_images     = glob.glob(os.path.join(sub,'perm*.nii'))
-#         perm_images.sort()
-#         # get a random number between 0 and number of permuted maps
-#         rnd_perm_map    = np.random.randint(0,len(perm_images))
-#         # add the randomly choosen permutation map to the list
-#         perm_classification_dirs.append(perm_images[rnd_perm_map])
-    
-#     # read in the randomly selected images
-#     perm_classification_images = smooth_img(perm_classification_dirs,fwhm=None)
-    
-#     # iterate over images and append the data to an empty list
-#     perm_classification_maps = []
-#     for img in perm_classification_images:
-#         img_data = img.get_fdata()
-#         perm_classification_maps.append(img_data)
-        
-#     # calculate mean of list and save created mean image
-#     perm_mean_accuracy_map  = perm_classification_images.mean(axis=0)
-#     results                 = new_img_like(ref_niimg=img,
-#                                            data=perm_mean_accuracy_map)
-    
-#     nib.save(results,os.path.join(RESULTS_DIR,
-#                                   'bootstrapped_{:04d}mean_accuracy.nii'.format(draw)))
-
-# ADVANTAGE: One can FIRST smooth the individual accuracy maps and THEN 
-# calculate the mean. Now there is no smoothing here but in the 
-# searchlight_cluster_statistic.py script
-##############################################################################
-
 # get the real mean decoding accuracy 
 mean_accuracy_map = []
 for sub in SUBJECTS:
@@ -238,6 +187,7 @@ for sub in SUBJECTS:
 # convert list to array and calculate the mean
 mean_accuracy_map = np.array(mean_accuracy_map)
 mean_accuracy_map = mean_accuracy_map.mean(axis=0)
+mean_accuracy_map[~MASK] = 0
 # save as NIfTI file
 results = new_img_like(ref_niimg=img, data=mean_accuracy_map)
 nib.save(results,os.path.join(RESULTS_DIR, 'mean_accuracy.nii'))
@@ -267,6 +217,7 @@ for draw in range(BOOTSTRAPPS):
     # the same as with the right accuracy maps: turn list into numpy array, calculate mean and save as NIfTI file
     perm_classification_images  = np.array(perm_classification_images)
     perm_mean_accuracy_map      = perm_classification_images.mean(axis=0)
+    perm_mean_accuracy_map[~MASK] = 0
     results = new_img_like(ref_niimg=img,data=perm_mean_accuracy_map)
     
     nib.save(results,
