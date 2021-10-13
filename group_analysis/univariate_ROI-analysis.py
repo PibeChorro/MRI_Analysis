@@ -88,12 +88,14 @@
 
 # interact with the operating system 
 import os
+import glob
 import argparse
 from pathlib import Path
 import git
 # data structuration and calculations
 import pandas as pd  # to create data frames
 import numpy as np   # most important numerical calculations
+# library for neuroimaging
 from statsmodels.stats.anova import AnovaRM
 import pingouin as pg
 # optimize time performance
@@ -123,11 +125,11 @@ elif ANALYZED == 'video':
     data_analyzed = 'WholeVideo'
 
 # variables for path selection and data access
-HOME            = str(Path.home())
-PROJ_DIR        = os.path.join(HOME, 'Documents/Master_Thesis/DATA/MRI')
-RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
-DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
-RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'univariate-ROI',
+HOME                = str(Path.home())
+PROJ_DIR            = os.path.join(HOME, 'Documents/Master_Thesis/DATA/MRI')
+RAWDATA_DIR         = os.path.join(PROJ_DIR, 'rawdata')
+DERIVATIVES_DIR     = os.path.join(PROJ_DIR, 'derivatives')
+RESULTS_DIR         = os.path.join(DERIVATIVES_DIR, 'univariate-ROI',
                                data_analyzed)
 
 # define ROIs
@@ -166,6 +168,7 @@ for roi in ROIS:
 averaged_dict['sub_ID']     = []
 averaged_dict['pre_post']   = []
 averaged_dict['Effect']     = []
+averaged_dict['Rating']     = []
 
 # read in the previously created data frame
 DATA_DF = pd.read_hdf(os.path.join(RESULTS_DIR,'data_frame.hdf5'),key='df')
