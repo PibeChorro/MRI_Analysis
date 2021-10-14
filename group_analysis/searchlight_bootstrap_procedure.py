@@ -100,6 +100,8 @@ parser = argparse.ArgumentParser()
 # add all the input arguments
 parser.add_argument("--data",       "-d",   nargs="?",  const='pre',    
                     default='pre',  type=str)
+parser.add_argument("--over",       "-o",   nargs='?',  const='objects',    
+                    default='objects')
 parser.add_argument("--analyzed",           nargs='?', const='moment',  
                     default='moment',   type=str)
 parser.add_argument("--bootstraps", "-b",   nargs="?",  const=1000,     
@@ -109,6 +111,7 @@ parser.add_argument("--bootstraps", "-b",   nargs="?",  const=1000,
 ARGS = parser.parse_args()
 # assign values 
 DATA        = ARGS.data
+OVER        = ARGS.over
 BOOTSTRAPPS = ARGS.bootstraps
 ANALYZED    = ARGS.analyzed
     
@@ -156,7 +159,8 @@ MASK        = MASK_IMG.get_fdata()
 MASK        = np.array(MASK,dtype=bool)
     
 DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
-                               DATA_TO_USE, data_analyzed,'SearchLight','LDA')
+                               DATA_TO_USE, 'over_' + OVER, data_analyzed,
+                               'SearchLight','LDA')
 RESULTS_DIR     = os.path.join(DATA_DIR, 'group-statistics')
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)

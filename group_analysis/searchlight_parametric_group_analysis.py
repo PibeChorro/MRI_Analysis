@@ -76,14 +76,17 @@ parser = argparse.ArgumentParser()
 # add all the input arguments
 parser.add_argument("--data",       "-d",   nargs="?",  const='pre',    
                     default='pre',  type=str)
+parser.add_argument("--over",       "-o",   nargs='?',  const='objects',    
+                    default='objects')
 parser.add_argument("--analyzed",   nargs='?', const='moment',  
                     default='moment',   type=str)
 
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
 # assign values 
-DATA     = ARGS.data
-ANALYZED = ARGS.analyzed
+DATA        = ARGS.data
+OVER        = ARGS.over
+ANALYZED    = ARGS.analyzed
 
 # variables for path selection and data access
 HOME            = str(Path.home())
@@ -118,7 +121,8 @@ else:
     raise
     
 DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
-                               DATA_TO_USE, data_analyzed,'SearchLight','LDA')
+                               DATA_TO_USE, 'over_' + OVER, data_analyzed,
+                               'SearchLight','LDA')
 RESULTS_DIR     = os.path.join(DATA_DIR,'group-statistics')
 
 SMOOTHING_SIZE = 4

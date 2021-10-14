@@ -141,9 +141,11 @@ parser = argparse.ArgumentParser()
 # add all the input arguments
 parser.add_argument("--sub",        "-s",                               
                     default='sub-01')         # subject
+parser.add_argument("--over",       "-o",   nargs='?',  const='objects',    
+                    default='objects')
 parser.add_argument("--smooth",             nargs='?',  const=0,        
                     default=0,      type=int) # what data should be used
-parser.add_argument("--algorythm",  "-a",   nargs='?',  const='LDA',    
+parser.add_argument("--algorythm",    "-a",   nargs='?',  const='LDA',    
                     default='LDA')
 parser.add_argument("--scaling",            nargs='?',  const='None',   
                     default='None', type=str)
@@ -161,6 +163,7 @@ parser.add_argument("--perms",      "-p",   nargs="?",  const=1000,
 ARGS = parser.parse_args()
 # assign values 
 SUB             = ARGS.sub
+OVER            = ARGS.over
 N_PROC          = ARGS.kernels
 SMOOTHING_SIZE  = ARGS.smooth
 DECODER         = ARGS.algorythm
@@ -228,8 +231,9 @@ SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
 # wheret to store the results
 ANALYSIS        = 'ROI-analysis'
 RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
-                               'decode_effect_on_'+RUNS_TO_USE+'magic',
-                               'SpecialMoment', ANALYSIS, DECODER, SUB)
+                               'decode_effect_on_'+RUNS_TO_USE+'magic', 
+                               'over_' + OVER, 'SpecialMoment', ANALYSIS, 
+                               DECODER, SUB)
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
@@ -275,7 +279,7 @@ print ('Number of permutations:	 {}'.format(N_PERMS))
 SPM_BETADICT = readmat.load(SPM_MAT_DIR, isStruct=True)['SPM']['Vbeta']
 BETA_DIRS = [f['fname'] for f in SPM_BETADICT]
 # The corresponding Regressor names - are in form of 'Sn(<run-number>) <Regressor-Name>*bf(1)'
-SPM_REGRESSORS = readmat.load(SPM_MAT_DIR,isStruct=True)['SPM']['xX']['name']
+SPM_REGRESSORS  = readmat.load(SPM_MAT_DIR,isStruct=True)['SPM']['xX']['name']
 
 # store beta filenames and regressornames in a dictionary
 data_dict = {
@@ -286,22 +290,34 @@ data_dict = {
 # convert dictionary into a pandas DataFrame for further analysis
 label_df = pd.DataFrame(data_dict, columns=data_dict.keys())
 
-# This complex loop is necessary to get the run number out of the regressor name
-x       = [' '.join(re.findall(r"\((\d+)\)",string)) for string in label_df.Regressors]
-runs    = [int(s_filter.split()[0]) for s_filter in x]
-
-# add further data to DataFrame
-label_df['Runs']    = runs                  # In which run
-label_df['Chunks']  = (label_df.Runs-1)//4  # The chunks (needed for cross validation)
-label_df['Labels']  = np.nan                # Labels
-
-# again a complex process to throw out regressors of no interest (like realignment)
+# a complex process to throw out regressors of no interest (like realignment)
 regressors_of_interest  = [True if 'Magic' in n else False for n in SPM_REGRESSORS]
 # throw out all rows of regressors of no interest
 label_df = label_df.iloc[regressors_of_interest]
+
+# This complex loop is necessary to get the run number out of the regressor name
+run_info    = [' '.join(re.findall(r"\((\d+)\)",string)) for string in label_df.Regressors]
+runs        = [int(s_filter.split()[0]) for s_filter in run_info]
+
+# add further data to DataFrame
+label_df['Runs'] = runs # In which run
 # only keep data from the runs you are interested in
 label_df = label_df[label_df.Runs.isin(runs_of_interest)]
 
+VideoNames  = [''.join(re.search(" (.+?)\*",string).group(1)) 
+            for string in label_df.Regressors]
+label_df['VideoNames'] = VideoNames
+
+# depending on whether we want to decode over objects or trick versions the 
+# chunks change
+if OVER == 'objects':
+    label_df['Chunks']  = (label_df.Runs-1)//4  
+elif OVER == 'tricks':
+    label_df['Chunks']  = label_df.VideoNames.str.contains('1')
+else:
+    raise
+
+label_df['Labels']  = np.nan                # Labels
 # Check for every entry in Regressors if it contains one of the label names. If so, assign the label name
 for l in LABEL_NAMES:
     label_df.Labels = np.where(label_df.Regressors.str.contains(l),l,label_df.Labels)
