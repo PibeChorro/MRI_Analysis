@@ -132,23 +132,26 @@ parser.add_argument("--smooth",             nargs='?',  const=0,
 parser.add_argument("--algorythm",  "-a",   nargs='?',  const='LDA',    
                     default='LDA',  type=str)
 parser.add_argument("--kernels",    "-k",   nargs='?',  const=12,       
-                    default=50,     type=int)   # how many processes should be run in parallel
+                    default=12,     type=int)   # how many processes should be run in parallel
 parser.add_argument("--runs",       "-r",   nargs="?",  const='pre',    
                     default='pre',  type=str)
 parser.add_argument("--analyzed",           nargs='?', const='moment',  
                     default='moment',   type=str)
 parser.add_argument("--perms",      "-p",   nargs="?",  const=10,       
                     default=10,     type=int)   # how many permutations
+parser.add_argument("--radius",     "-r",   nargs="?", const=4.0,
+                    default=4.0,    type=float)
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
 # assign values 
 SUB             = ARGS.sub
-N_PROC          = ARGS.kernels
 SMOOTHING_SIZE  = ARGS.smooth
 DECODER         = ARGS.algorythm
+N_PROC          = ARGS.kernels
 RUNS_TO_USE     = ARGS.runs
-N_PERMS         = ARGS.perms
 ANALYZED        = ARGS.analyzed
+N_PERMS         = ARGS.perms
+SEARCHLIG_RAD   = ARGS.radius
 
 # based on command line flag decide what decoding algorithm should be used
 if DECODER =='LDA':
@@ -271,7 +274,7 @@ runs_for_permutation    = np.asarray(label_df.Runs)
 
 # initialize the searchlight decoding object
 MY_SEARCH_LIGHT = SearchLight(mask_img=MASK_DIR,
-                             radius=4.0,
+                             radius=SEARCHLIG_RAD,
                              estimator=my_decoder,
                              n_jobs=N_PROC,
                              cv=PredefinedSplit(chunks),
@@ -306,16 +309,30 @@ for i in range(N_PERMS):
 del label_df
 del betas
 
+##################
+# WRITE LOG FILE #
+##################
+# We want to save all important information of the script execution
+# To get the git hash we have to check if the script was run locally or on the
+# cluster. If it is run on the cluster we want to get the $PBS_O_WORKDIR 
+# variable, which preserves the location from which the job was started. 
+# If it is run locally we want to get the current working directory.
 
-rep = git.Repo(os.getcwd(),search_parent_directories=True)
-git_hash = rep.head.object.hexsha
+try:
+    script_file_directory = os.environ["PBS_O_WORKDIR"]
+except KeyError:
+    script_file_directory = os.getcwd()
+    
+try:
+    rep = git.Repo(script_file_directory, search_parent_directories=True)
+    git_hash = rep.head.object.hexsha
+except git.InvalidGitRepositoryError:
+    git_hash = 'not-found'
 
 # create a log file, that saves some information about the run script
 with open(os.path.join(RESULTS_DIR,'serchlight-logfile.txt'), 'w+') as writer:
     writer.write('Codeversion: {} \n'.format(git_hash))
     writer.write('Number of permutations: {}\n'.format(str(N_PERMS)))
+    writer.write('Searchlight radius: {}\n'.format(str(SEARCHLIG_RAD)))
     writer.write('Number of kernels used: {}\n'.format(str(N_PROC)))
     writer.write('Time for computation: {}h'.format(str((time.time() - T_START)/3600)))
-
-# print time the whole processe took
-print ((time.time() - T_START)/3600)

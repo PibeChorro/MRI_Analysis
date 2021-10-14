@@ -152,7 +152,7 @@ parser.add_argument("--cutoff",     "-c",   nargs='?',  const=np.inf,
 parser.add_argument("--feature",    "-f",   nargs='?',  const='None',   
                     default='None', type=str)
 parser.add_argument("--kernels",    "-k",   nargs='?',  const=12,       
-                    default=1,      type=int)   # how many processes should be run in parallel
+                    default=12,     type=int)   # how many processes should be run in parallel
 parser.add_argument("--runs",       "-r",   nargs="?",  const='pre',    
                     default='pre',  type=str)
 parser.add_argument("--perms",      "-p",   nargs="?",  const=1000,     
@@ -417,8 +417,25 @@ d = '_'
 d = d.join(decoder_parameters.split(os.sep))
 fig.savefig(os.path.join(RESULTS_DIR,SUB + '_' + DECODER + '_' + GLM_DATA_DIR + '_' + d +'.png'))
 
-rep = git.Repo(search_parent_directories=True)
-git_hash = rep.head.object.hexsha
+##################
+# WRITE LOG FILE #
+##################
+# We want to save all important information of the script execution
+# To get the git hash we have to check if the script was run locally or on the
+# cluster. If it is run on the cluster we want to get the $PBS_O_WORKDIR 
+# variable, which preserves the location from which the job was started. 
+# If it is run locally we want to get the current working directory.
+
+try:
+    script_file_directory = os.environ["PBS_O_WORKDIR"]
+except KeyError:
+    script_file_directory = os.getcwd()
+    
+try:
+    rep = git.Repo(script_file_directory, search_parent_directories=True)
+    git_hash = rep.head.object.hexsha
+except git.InvalidGitRepositoryError:
+    git_hash = 'not-found'
 
 # create a log file, that saves some information about the run script
 with open(os.path.join(RESULTS_DIR,'logfile.txt'), 'w+') as writer:

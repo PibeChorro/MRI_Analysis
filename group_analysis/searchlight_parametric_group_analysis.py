@@ -178,3 +178,27 @@ nib.save(results,os.path.join(DATA_DIR,'uncorrected_p_map.nii'))
 
 results = new_img_like(ref_niimg=subs_accuracy_images[0],data=significant_map)
 nib.save(results,os.path.join(DATA_DIR,'uncorrected_significant_voxels.nii'))
+
+##################
+# WRITE LOG FILE #
+##################
+# We want to save all important information of the script execution
+# To get the git hash we have to check if the script was run locally or on the
+# cluster. If it is run on the cluster we want to get the $PBS_O_WORKDIR 
+# variable, which preserves the location from which the job was started. 
+# If it is run locally we want to get the current working directory.
+
+try:
+    script_file_directory = os.environ["PBS_O_WORKDIR"]
+except KeyError:
+    script_file_directory = os.getcwd()
+    
+try:
+    rep = git.Repo(script_file_directory, search_parent_directories=True)
+    git_hash = rep.head.object.hexsha
+except git.InvalidGitRepositoryError:
+    git_hash = 'not-found'
+    
+# create a log file, that saves some information about the run script
+with open(os.path.join(RESULTS_DIR,'parametric_analysis-logfile.txt'), 'w+') as writer:
+    writer.write('Codeversion: {} \n'.format(git_hash))
