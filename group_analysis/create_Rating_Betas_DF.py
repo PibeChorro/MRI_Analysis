@@ -216,7 +216,7 @@ for roi in ROIS:
 ratings = []
 
 # iterate over subjects to read in ALL the data in one huge data frame
-for s, sub in enumerate(SUBJECTS[0:3]):
+for s, sub in enumerate(SUBJECTS):
 
     ########################################
     # reading in the necessary information #
@@ -241,7 +241,16 @@ for s, sub in enumerate(SUBJECTS[0:3]):
     
     # read in the beta images from current subject and calculate its mean for 
     # each roi
-    
+
+    betas = []
+    for beta_file in sub_beta_names:
+        beta_dir = os.path.join(FLA_DIR, sub, beta_file)
+        beta_img = nib.load(beta_dir)
+        beta_data = beta_img.get_fdata()
+        beta_data = beta_data.flatten()
+        betas.append(beta_data)
+    betas = np.array(betas)
+            
     for roi in ROIS:
         # get ROI mask
         roi_dir = os.path.join(FREESURFER_DIR,sub, 'corrected_ROIs')
@@ -262,17 +271,13 @@ for s, sub in enumerate(SUBJECTS[0:3]):
         ROI = np.sum(masklist,axis=0)
         # turn into boolean values
         ROI = ROI>0
-            
-        betas = []
-        for beta_file in sub_beta_names:
-            beta_dir = os.path.join(FLA_DIR, sub, beta_file)
-            beta_img = nib.load(beta_dir)
-            beta_data = beta_img.get_fdata()
-            beta_data = beta_data.flatten()
-            beta_roi    = beta_data[ROI & ~np.isnan(beta_data)]
-            betas.append(beta_roi.mean())
-            
-        data_dict[roi].extend(betas)
+        
+        # get data you want to use in the ROI analysis
+        ROI_data = []
+        ROI_data.append([beta[ROI & ~np.isnan(beta)] for beta in betas])
+        ROI_data = np.array(ROI_data[0])
+        
+        data_dict[roi].extend(ROI_data.mean(axis=1))
         
     
 # turn dictionary into a pandas data frame
@@ -312,12 +317,12 @@ for t in VIDEO_TYPE:
 # The behavioral data is stored in events.tsv files in the rawdata 
 # directory. 
 # iterate over subjects to read in ALL the data in one huge data frame
-for s, sub in enumerate(SUBJECTS[0:3]):
+for s, sub in enumerate(SUBJECTS):
     run_events = glob.glob(os.path.join(RAWDATA_DIR,sub,'func','*events.tsv'))
     run_events.sort()
     for event_file in run_events:
         event_df = pd.read_csv(filepath_or_buffer=event_file,delimiter='\t')
-        ratings.extend(event_df.value[event_df.index%2==1])
+        ratings.extend(event_df.value)
         
 data_frame['Ratings'] = ratings
 data_frame.to_csv(path_or_buf=os.path.join(RESULTS_DIR,'ratings_df.csv'))
