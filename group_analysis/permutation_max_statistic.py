@@ -125,9 +125,9 @@ T_START = time.time()
 parser = argparse.ArgumentParser()
 
 # add all the input arguments
-parser.add_argument("--data", "-d", nargs="?", const='pre', default='pre', 
+parser.add_argument("--data", "-d", nargs="?", const='pre', default='all', 
                     type=str)
-parser.add_argument("--over",       "-o",   nargs='?',  const='objects',    
+parser.add_argument("--over",  "-o",   nargs='?',  const='objects', 
                     default='objects')
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
@@ -163,7 +163,7 @@ else:
     raise
 DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
                                DATA_TO_USE, 'over_' + OVER, 'SpecialMoment',
-                               'ROI-analysis','LDA')
+                               'ROI-analysis')
 RESULTS_DIR     = os.path.join(DATA_DIR,'group-statistics')
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
