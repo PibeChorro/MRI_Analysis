@@ -60,9 +60,11 @@ import git
 # data structuration and calculations
 import pandas as pd  # to create data frames
 import numpy as np   # most important numerical calculations
+from scipy import stats
 from statsmodels.stats.anova import AnovaRM
 import pingouin as pg
 import matplotlib.pyplot as plt
+import seaborn as sns
 # optimize time performance
 import time
 
@@ -104,6 +106,17 @@ DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'univariate-ROI',
 
 data_frame = pd.read_csv(filepath_or_buffer=os.path.join(DATA_DIR,'ratings_df.csv'))
 
+# define ROIs
+ROIS = [
+        'V1', 'V2', 'V3', 'hV4', 
+        'V3A', 'V3B', 
+        'LO', 'VO', 
+        'FEF', 'IPS',
+        'ACC', 'PCC', 
+        'IFG', 'aINSULA', 
+        'IFJ', 'PHT', 'PF'
+      ]
+
 VIDEO_TYPE = [
     'Magic',
     'Control',
@@ -119,25 +132,60 @@ EFFECTS = [
 ############
 # ANALYSES #
 ############
-# repeated measures ANOVA of pre-post x Video type
+# correlation between behavioral surprise ratings and beta images
 
+# first remove missing values and average over conditions
 na_removed = pg.remove_rm_na(data=data_frame,
                              dv='Ratings', 
                              subject='ids',
                              within=['PrePost', 'Type'],
                              aggregate='mean')
+# correlation of suprise ratings pre revelation magic and ROI betas
+pre_revelation_df = na_removed[na_removed.PrePost == 0]
+x_var = pre_revelation_df.Ratings[pre_revelation_df.Type == 'Magic'].values
+for roi in ROIS:
+    pre_magic_betas = pre_revelation_df[roi][pre_revelation_df.Type == 'Magic'].values
+    pre_control_betas = pre_revelation_df[roi][pre_revelation_df.Type == 'Control'].values
+    y_var = pre_magic_betas-pre_control_betas
+    [r, p] = stats.spearmanr(x_var, y_var)
+    print ('Pearson correlation between rating and {} activity r={} (p={})'.format(roi,r,p))
+    
+    plotting_data = {"x":x_var,"y":y_var}
+    plotting_df = pd.DataFrame(data=plotting_data)
+    sns.lmplot(x="x",y="y",data=plotting_df)
+    plt.show()
+
+# repeated measures ANOVA of pre-post x Video type
+
 
 spher = pg.sphericity(data=na_removed,
                       dv='Ratings', 
                       subject='ids',
                       within=['PrePost', 'Type'])
+norm = pg.normality(data=na_removed,
+                      dv='Ratings',
+                      group= 'PrePost')
     
+# print if sphericity is given for the data
+print('Spericity for rating data is given: {}\n'.format(spher.spher))
 aov_res = pg.rm_anova(data=na_removed,
                       dv='Ratings', 
                       subject='ids',
                       within=['PrePost', 'Type'],
                       correction = not spher.spher,
                       detailed=True)
+
+# report results of anov
+if spher.spher:
+    p_to_report = aov_res['p-unc']
+else:
+    p_to_report = aov_res['p-GG-corr']
+print('{} main effect: F = {} (p={})\n'.format(aov_res.Source[0], aov_res.F[0],
+                                       p_to_report[0]))
+print('{} main effect: F = {} (p={})\n'.format(aov_res.Source[1], aov_res.F[1],
+                                       p_to_report[1]))
+print('{} interaction effect: F = {} (p={})\n'.format(aov_res.Source[2], aov_res.F[2],
+                                       p_to_report[2]))
 
 fig = plt.figure()
 for vid_type in VIDEO_TYPE:
@@ -155,24 +203,63 @@ for vid_type in VIDEO_TYPE:
     plt.fill_between([0,1], upper, lower, alpha=0.2)
 
 # # if the interaction effect is significant
-# if aov_res['p-GG-corr'][2]<0.05:
-#     Magic_df = na_removed[na_removed.Type == 'Magic']
-#     magic_ttest = pg.ttest(x=Magic_df.Ratings[Magic_df.PrePost==0],
-#                            y=Magic_df.Ratings[Magic_df.PrePost==1],
-#                            paired=True, 
-#                            alternative='greater')
+if p_to_report[2]<0.05:
+    Magic_df = na_removed[na_removed.Type == 'Magic']
     
-#     Control_df = na_removed[na_removed.Type == 'Control']
-#     control_ttest = pg.ttest(x=Control_df.Ratings[Control_df.PrePost==0],
-#                              y=Control_df.Ratings[Control_df.PrePost==1],
-#                              paired=True, 
-#                              alternative='greater')
+    # check for equal variance and normal distribution of data
+    mag_homo = pg.homoscedasticity(data=Magic_df,dv='Ratings',group='PrePost')
+    mag_norm = pg.normality(data=Magic_df,dv='Ratings',group='PrePost')
     
-#     Surprise_df = na_removed[na_removed.Type == 'Surprise']
-#     surprise_ttest = pg.ttest(x=Surprise_df.Ratings[Surprise_df.PrePost==0],
-#                               y=Surprise_df.Ratings[Surprise_df.PrePost==1],
-#                               paired=True, 
-#                               alternative='greater')
+    if not mag_norm.normal.all():
+        Warning('Data not normal distributed')
+    
+    if mag_homo.equal_var[0]:
+        magic_ttest = pg.ttest(x=Magic_df.Ratings[Magic_df.PrePost==0],
+                                y=Magic_df.Ratings[Magic_df.PrePost==1],
+                                paired=True, 
+                                alternative='greater')
+        print('Magic pre vs post: T = {} (p={})\n'.format(magic_ttest['T'][0],
+                                                        magic_ttest['p-val'][0]))
+    else:
+         print ('perform other test')   
+    
+    Control_df = na_removed[na_removed.Type == 'Control']
+    
+    # check for equal variance and normal distribution of data
+    con_homo = pg.homoscedasticity(data=Control_df,dv='Ratings',group='PrePost')
+    con_norm = pg.normality(data=Control_df,dv='Ratings',group='PrePost')
+    
+    if not con_norm.normal.all():
+        Warning('Data not normal distributed')
+    
+    if con_homo.equal_var[0]:
+        control_ttest = pg.ttest(x=Control_df.Ratings[Control_df.PrePost==0],
+                                  y=Control_df.Ratings[Control_df.PrePost==1],
+                                  paired=True, 
+                                  alternative='greater')
+        print('Control pre vs post: T = {} (p={})\n'.format(control_ttest['T'][0],
+                                                        control_ttest['p-val'][0]))
+    else:
+         print ('perform other test')  
+    
+    Surprise_df = na_removed[na_removed.Type == 'Surprise']
+    
+    # check for equal variance and normal distribution of data
+    sup_homo = pg.homoscedasticity(data=Surprise_df,dv='Ratings',group='PrePost')
+    sup_norm = pg.normality(data=Surprise_df,dv='Ratings',group='PrePost')
+    
+    if not sup_norm.normal.all():
+        Warning('Data not normal distributed')
+        
+    if sup_homo.equal_var[0]:
+        surprise_ttest = pg.ttest(x=Surprise_df.Ratings[Surprise_df.PrePost==0],
+                                  y=Surprise_df.Ratings[Surprise_df.PrePost==1],
+                                  paired=True, 
+                                  alternative='greater')
+        print('Surprise pre vs post: T = {} (p={})\n'.format(surprise_ttest['T'][0],
+                                                        surprise_ttest['p-val'][0]))
+    else:
+        print ('perform other test') 
     
 # repeated measures ANOVA for effects x objects (only magic videos)
 magic_df = data_frame[data_frame.Type=='Magic']
@@ -182,11 +269,32 @@ na_removed = pg.remove_rm_na(data=magic_df,
                              within=['Objects', 'Effect'],
                              aggregate='mean')
 
+spher = pg.sphericity(data=na_removed,
+                      dv='Ratings', 
+                      subject='ids',
+                      within=['Objects', 'Effect'])
+
+
 rm_aov = AnovaRM(data=na_removed, 
                  depvar='Ratings', 
                  subject='ids',
                  within=['Objects', 'Effect'])
 res = rm_aov.fit()
+# report results of anov
+
+if spher.spher:
+    p_to_report = aov_res['p-unc']
+else:
+    p_to_report = aov_res['p-GG-corr']
+print('{} main effect: F = {} (p={})\n'.format(aov_res.Source[0], 
+                                               res.anova_table['F Value'][0],
+                                               p_to_report[0]))
+print('{} main effect: F = {} (p={})\n'.format(aov_res.Source[1], 
+                                               res.anova_table['F Value'][1],
+                                               p_to_report[1]))
+print('{} interaction effect: F = {} (p={})\n'.format(aov_res.Source[2], 
+                                                      res.anova_table['F Value'][2],
+                                                      p_to_report[2]))
 
 fig = plt.figure()
 eff_values  = []
