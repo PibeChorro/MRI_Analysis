@@ -141,7 +141,7 @@ parser.add_argument("--analyzed",           nargs='?', const='moment',
                     default='moment',   type=str)
 parser.add_argument("--perms",      "-p",   nargs="?",  const=10,       
                     default=10,     type=int)   # how many permutations
-parser.add_argument("--radius",     "-r",   nargs="?", const=4.0,
+parser.add_argument("--radius",             nargs="?", const=4.0,
                     default=4.0,    type=float)
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
@@ -349,6 +349,8 @@ except git.InvalidGitRepositoryError:
 # create a log file, that saves some information about the run script
 with open(os.path.join(RESULTS_DIR,'serchlight-logfile.txt'), 'w+') as writer:
     writer.write('Codeversion: {} \n'.format(git_hash))
+    writer.write('Decoder used: {}\n'.format(DECODER))
+    writer.write('Smoothing kernel of data: {}\n'.format(str(SMOOTHING_SIZE)))
     writer.write('Number of permutations: {}\n'.format(str(N_PERMS)))
     writer.write('Searchlight radius: {}\n'.format(str(SEARCHLIG_RAD)))
     writer.write('Number of kernels used: {}\n'.format(str(N_PROC)))

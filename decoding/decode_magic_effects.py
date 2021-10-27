@@ -142,7 +142,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--sub",        "-s",                               
                     default='sub-01')         # subject
 parser.add_argument("--over",       "-o",   nargs='?',  const='objects',    
-                    default='objects')
+                    default='tricks')
 parser.add_argument("--smooth",             nargs='?',  const=0,        
                     default=0,      type=int) # what data should be used
 parser.add_argument("--algorythm",    "-a",   nargs='?',  const='LDA',    
@@ -233,7 +233,7 @@ ANALYSIS        = 'ROI-analysis'
 RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
                                'decode_effect_on_'+RUNS_TO_USE+'magic', 
                                'over_' + OVER, 'SpecialMoment', ANALYSIS, 
-                               DECODER, SUB)
+                               SUB)
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
@@ -357,7 +357,8 @@ for r, roi in tqdm(enumerate(ROIS)):
     # get data you want to use in the ROI analysis
     ROI_data = []
     ROI_data.append([beta[ROI & ~np.isnan(beta)] for beta in betas])
-    ROI_data = np.array(ROI_data [0])               # the list comprehension wraps the matrix in an additional, unnecessary array
+    # the list comprehension wraps the matrix in an additional, unnecessary array
+    ROI_data = np.array(ROI_data [0])               
     
     # apply scaling and cutoff according to command line input
     if SCALE == 'z':
@@ -457,5 +458,9 @@ except git.InvalidGitRepositoryError:
 with open(os.path.join(RESULTS_DIR,'logfile.txt'), 'w+') as writer:
     writer.write('Codeversion: {} \n'.format(git_hash))
     writer.write('Number of permutations: {}\n'.format(N_PERMS))
+    writer.write('Scaling: {}\n'.format(SCALE))
+    writer.write('Cutoff: {}\n'.format(str(CUTOFF)))
+    writer.write('Decoder used: {}\n'.format(DECODER))
+    writer.write('Smoothing kernel of data: {}\n'.format(str(SMOOTHING_SIZE)))
     writer.write('Number of kernels used: {}\n'.format(str(N_PROC)))
     writer.write('Time for computation: {}h'.format(str((time.time() - T_START)/3600)))

@@ -415,6 +415,10 @@ except git.InvalidGitRepositoryError:
 # create a log file, that saves some information about the run script
 with open(os.path.join(RESULTS_DIR,'logfile.txt'), 'w+') as writer:
     writer.write('Codeversion: {} \n'.format(git_hash))
+    writer.write('Scaling: {}\n'.format(SCALE))
+    writer.write('Cutoff: {}\n'.format(str(CUTOFF)))
+    writer.write('Decoder used: {}\n'.format(DECODER))
+    writer.write('Smoothing kernel of data: {}\n'.format(str(SMOOTHING_SIZE)))
     writer.write('Number of permutations: {}\n'.format(N_PERMS))
     writer.write('Number of kernels used: {}\n'.format(str(N_PROC)))
     writer.write('Time for computation: {}h'.format(str((time.time() - T_START)/3600)))
