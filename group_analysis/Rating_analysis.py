@@ -157,7 +157,6 @@ for roi in ROIS:
 
 # repeated measures ANOVA of pre-post x Video type
 
-
 spher = pg.sphericity(data=na_removed,
                       dv='Ratings', 
                       subject='ids',
@@ -174,6 +173,8 @@ aov_res = pg.rm_anova(data=na_removed,
                       within=['PrePost', 'Type'],
                       correction = not spher.spher,
                       detailed=True)
+
+aov_res.to_csv(path_or_buf=os.path.join(DATA_DIR,'aov_PrePost_Type_results.csv'))
 
 # report results of anov
 if spher.spher:
@@ -204,62 +205,23 @@ for vid_type in VIDEO_TYPE:
 
 # # if the interaction effect is significant
 if p_to_report[2]<0.05:
-    Magic_df = na_removed[na_removed.Type == 'Magic']
+    # pairwise t-tests
     
-    # check for equal variance and normal distribution of data
-    mag_homo = pg.homoscedasticity(data=Magic_df,dv='Ratings',group='PrePost')
-    mag_norm = pg.normality(data=Magic_df,dv='Ratings',group='PrePost')
+    post_hoc_res_PrePost = pg.pairwise_ttests(data=na_removed, 
+                                              dv='Ratings', 
+                                              within= ['PrePost','Type'],
+                                              subject='ids',
+                                              alternative='two-sided')
     
-    if not mag_norm.normal.all():
-        Warning('Data not normal distributed')
+    post_hoc_res_Type = pg.pairwise_ttests(data=na_removed, 
+                                           dv='Ratings', 
+                                           within= ['Type','PrePost'],
+                                           subject='ids',
+                                           alternative='two-sided')
     
-    if mag_homo.equal_var[0]:
-        magic_ttest = pg.ttest(x=Magic_df.Ratings[Magic_df.PrePost==0],
-                                y=Magic_df.Ratings[Magic_df.PrePost==1],
-                                paired=True, 
-                                alternative='greater')
-        print('Magic pre vs post: T = {} (p={})\n'.format(magic_ttest['T'][0],
-                                                        magic_ttest['p-val'][0]))
-    else:
-         print ('perform other test')   
-    
-    Control_df = na_removed[na_removed.Type == 'Control']
-    
-    # check for equal variance and normal distribution of data
-    con_homo = pg.homoscedasticity(data=Control_df,dv='Ratings',group='PrePost')
-    con_norm = pg.normality(data=Control_df,dv='Ratings',group='PrePost')
-    
-    if not con_norm.normal.all():
-        Warning('Data not normal distributed')
-    
-    if con_homo.equal_var[0]:
-        control_ttest = pg.ttest(x=Control_df.Ratings[Control_df.PrePost==0],
-                                  y=Control_df.Ratings[Control_df.PrePost==1],
-                                  paired=True, 
-                                  alternative='greater')
-        print('Control pre vs post: T = {} (p={})\n'.format(control_ttest['T'][0],
-                                                        control_ttest['p-val'][0]))
-    else:
-         print ('perform other test')  
-    
-    Surprise_df = na_removed[na_removed.Type == 'Surprise']
-    
-    # check for equal variance and normal distribution of data
-    sup_homo = pg.homoscedasticity(data=Surprise_df,dv='Ratings',group='PrePost')
-    sup_norm = pg.normality(data=Surprise_df,dv='Ratings',group='PrePost')
-    
-    if not sup_norm.normal.all():
-        Warning('Data not normal distributed')
-        
-    if sup_homo.equal_var[0]:
-        surprise_ttest = pg.ttest(x=Surprise_df.Ratings[Surprise_df.PrePost==0],
-                                  y=Surprise_df.Ratings[Surprise_df.PrePost==1],
-                                  paired=True, 
-                                  alternative='greater')
-        print('Surprise pre vs post: T = {} (p={})\n'.format(surprise_ttest['T'][0],
-                                                        surprise_ttest['p-val'][0]))
-    else:
-        print ('perform other test') 
+    post_hoc_res = pd.concat ([post_hoc_res_PrePost, post_hoc_res_Type])
+    post_hoc_res.to_csv(path_or_buf=os.path.join(DATA_DIR,'post_hoc_PrePost_Type_results.csv'),
+                        index=False)
     
 # repeated measures ANOVA for effects x objects (only magic videos)
 magic_df = data_frame[data_frame.Type=='Magic']
@@ -269,10 +231,10 @@ na_removed = pg.remove_rm_na(data=magic_df,
                              within=['Objects', 'Effect'],
                              aggregate='mean')
 
-spher = pg.sphericity(data=na_removed,
-                      dv='Ratings', 
-                      subject='ids',
-                      within=['Objects', 'Effect'])
+# spher = pg.sphericity(data=na_removed,
+#                       dv='Ratings', 
+#                       subject='ids',
+#                       within=['Objects', 'Effect'])
 
 
 rm_aov = AnovaRM(data=na_removed, 
@@ -283,18 +245,50 @@ res = rm_aov.fit()
 # report results of anov
 
 if spher.spher:
-    p_to_report = aov_res['p-unc']
+    p_to_report = res.anova_table['Pr > F']
 else:
     p_to_report = aov_res['p-GG-corr']
-print('{} main effect: F = {} (p={})\n'.format(aov_res.Source[0], 
+print('{} main effect: F = {} (p={})\n'.format(res.anova_table.index[0], 
                                                res.anova_table['F Value'][0],
                                                p_to_report[0]))
-print('{} main effect: F = {} (p={})\n'.format(aov_res.Source[1], 
+print('{} main effect: F = {} (p={})\n'.format(res.anova_table.index[1], 
                                                res.anova_table['F Value'][1],
                                                p_to_report[1]))
-print('{} interaction effect: F = {} (p={})\n'.format(aov_res.Source[2], 
+print('{} interaction effect: F = {} (p={})\n'.format(res.anova_table.index[2], 
                                                       res.anova_table['F Value'][2],
                                                       p_to_report[2]))
+
+####################################################################
+# check for significant effects and do post hoc tests if there are #
+####################################################################
+# first check for an interaction. If there is one, do all post hoc
+if res.anova_table['Pr > F'][2]<0.05:
+    post_hoc_res_Obj = pg.pairwise_ttests(data=magic_df,
+                                          dv='Ratings',
+                                          within=['Objects', 'Effect'],
+                                          subject='ids')
+    post_hoc_res_Eff = pg.pairwise_ttests(data=magic_df,
+                                          dv='Ratings',
+                                          within=['Effect', 'Objects'],
+                                          subject='ids')
+    post_hoc_res = pd.concat ([post_hoc_res_Obj, post_hoc_res_Eff])
+    post_hoc_res.to_csv(path_or_buf=os.path.join(DATA_DIR,'post_hoc_Obj_Eff_results.csv'),
+                        index=False)
+    
+elif res.anova_table['Pr > F'][1]<0.05:
+    post_hoc_res_Eff = pg.pairwise_ttests(data=magic_df,
+                                          dv='Ratings',
+                                          within=['Effect'],
+                                          subject='ids')
+    post_hoc_res_Eff.to_csv(path_or_buf=os.path.join(DATA_DIR,'post_hoc_Eff_results.csv'),
+                        index=False)
+elif res.anova_table['Pr > F'][0]<0.05:
+    post_hoc_res_Obj = pg.pairwise_ttests(data=magic_df,
+                                          dv='Ratings',
+                                          within=['Objects'],
+                                          subject='ids')
+    post_hoc_res_Obj.to_csv(path_or_buf=os.path.join(DATA_DIR,'post_hoc_Obj_results.csv'),
+                        index=False)
 
 fig = plt.figure()
 eff_values  = []
