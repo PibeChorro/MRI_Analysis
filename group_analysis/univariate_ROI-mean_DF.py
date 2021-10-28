@@ -175,7 +175,8 @@ ROIS = [
         'FEF', 'IPS',
         'ACC', 'PCC', 
         'IFG', 'aINSULA', 
-        'IFJ', 'PHT', 'PF'
+        'IFJ', 'PHT', 'PF',
+        'DMN', 'DAN', 'VAN', 'visual'
       ]
 
 # objects used on magic tricks

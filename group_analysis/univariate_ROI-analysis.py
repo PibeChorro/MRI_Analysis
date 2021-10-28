@@ -130,7 +130,7 @@ PROJ_DIR            = os.path.join(HOME, 'Documents/Master_Thesis/DATA/MRI')
 RAWDATA_DIR         = os.path.join(PROJ_DIR, 'rawdata')
 DERIVATIVES_DIR     = os.path.join(PROJ_DIR, 'derivatives')
 RESULTS_DIR         = os.path.join(DERIVATIVES_DIR, 'univariate-ROI',
-                               data_analyzed)
+                               data_analyzed,'MagicEffects')
 
 # define ROIs
 ROIS = [
@@ -140,7 +140,8 @@ ROIS = [
         'FEF', 'IPS',
         'ACC', 'PCC', 
         'IFG', 'aINSULA', 
-        'IFJ', 'PHT', 'PF'
+        'IFJ', 'PHT', 'PF',
+        'DMN', 'DAN', 'VAN', 'visual'
       ]
 
 OBJECTS = [
@@ -168,10 +169,9 @@ for roi in ROIS:
 averaged_dict['sub_ID']     = []
 averaged_dict['pre_post']   = []
 averaged_dict['Effect']     = []
-averaged_dict['Rating']     = []
 
 # read in the previously created data frame
-DATA_DF = pd.read_hdf(os.path.join(RESULTS_DIR,'data_frame.hdf5'),key='df')
+DATA_DF = pd.read_csv(os.path.join(RESULTS_DIR,'data_frame.csv'))
 # from read data frame iterate over subjects 
 # within each subject average the magic effects and the corresponding controls
 # substract magic - control

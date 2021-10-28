@@ -173,9 +173,12 @@ GLASSER_ROIS = [
     'IFG', 'aINSULA', 'IFJ'
     ]
 
+# one plot for the four brain networks of interest
+BRAIN_NETWORKS = ['DMN', 'DAN', 'VAN', 'visual']
+
 # Combine the two ROI sets and give them names
-ROIS = [BENSON_ROIS, GLASSER_ROIS]
-ROI_SET_NAMES = ['Benson ROIs', 'Glasser ROIs']
+ROIS = [BENSON_ROIS, GLASSER_ROIS, BRAIN_NETWORKS]
+ROI_SET_NAMES = ['Benson ROIs', 'Glasser ROIs', 'Brain Networks']
 
 # the magical effects used in the magic study. For each effect there will be 
 # one boxplot
@@ -394,6 +397,63 @@ legend = plt.legend(title='Legend',
 # plt.legend. Therefore we change it here
 plt.setp(legend.get_title(),fontsize=30)
 fig.savefig(os.path.join(DATA_DIR,'GlasserROIs_means.png'))
+
+# figure settings
+fig = plt.figure(figsize=(33,30))
+# iterate over Benson ROIs 
+for r,roi in enumerate(BRAIN_NETWORKS):
+    # For each ROI we create a single subplot. 
+    # We have selected 7 from the Glasser ROIs therefore we go for 3 rows and
+    # 3 columns
+    num_rows = 2
+    num_cols = 2
+    # The row is ROI index divided by number of rows the column is ROI index 
+    # modulo number of rows
+    # The subplot index is column + row*number of rows +1
+    row = r//num_rows
+    col = r%num_rows
+    idx = col+row*num_rows+1
+    # create subplot and set title, ticks etc.
+    ax = fig.add_subplot(num_rows,num_cols,idx)
+    ax.set_title(roi, fontsize=35)
+    ax.set_xticks([0,1,2])
+    ax.set_xticklabels(EFFECTS)
+    ax.tick_params(axis='both',labelsize=30)
+    # iterate over conditions (pre, post)
+    for c,cond in enumerate(PRE_POST):
+        # empty list to be filled with data from one condition 
+        means = []
+        sems = []
+        # iterate over effect (Appear, Change, Vanish)
+        for e,eff in enumerate(EFFECTS):
+            # select all data from the current roi (DATA_DF.loc[:,roi]) 
+            # but only from the current effect (DATA_DF.Effect==eff) and
+            # the current condition (DATA_DF.pre_post==cond). When using 
+            # more than one 'filter' parentesis are necessary
+            effect_data = DATA_DF.loc[:,roi][(DATA_DF.Effect==eff)&
+                                              (DATA_DF.pre_post==cond)]
+            means.append(effect_data.mean())
+            sems.append(effect_data.sem())
+        
+        # plot the mean value of the effects once with markers and once with
+        # a dashed line
+        ax.plot(means, color = COLORS[c], marker=MARKERSTYLE[c], label=cond)
+        ax.plot(means, color = COLORS[c], linestyle='--')
+        # plot the std of the effects as area
+        sems = np.array(sems)
+        upper = means+sems
+        lower = means-sems
+        ax.fill_between([0,1,2], upper, lower, 
+                        color= COLORS[c], alpha=.2)
+# create a nice legend  
+legend = plt.legend(title='Legend', 
+                    bbox_to_anchor=(1.5,0), 
+                    loc='lower right', 
+                    fontsize=30)
+# fontsize of legend's title is not affected by argument 'fontsize' in function
+# plt.legend. Therefore we change it here
+plt.setp(legend.get_title(),fontsize=30)
+fig.savefig(os.path.join(DATA_DIR,'Networks_means.png'))
 
 
 ##################
