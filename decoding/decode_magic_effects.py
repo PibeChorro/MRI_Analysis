@@ -140,7 +140,7 @@ parser = argparse.ArgumentParser()
 
 # add all the input arguments
 parser.add_argument("--sub",        "-s",                               
-                    default='sub-01')         # subject
+                    default='sub-21')         # subject
 parser.add_argument("--over",       "-o",   nargs='?',  const='objects',    
                     default='tricks')
 parser.add_argument("--smooth",             nargs='?',  const=0,        
@@ -311,9 +311,33 @@ label_df['VideoNames'] = VideoNames
 # depending on whether we want to decode over objects or trick versions the 
 # chunks change
 if OVER == 'objects':
-    label_df['Chunks']  = (label_df.Runs-1)//4  
+    label_df['Chunks']  = (label_df.Runs-1)//4
+    chunks              = np.asarray(label_df.Chunks)
+    ps = PredefinedSplit(chunks)
 elif OVER == 'tricks':
-    label_df['Chunks']  = label_df.VideoNames.str.contains('1')
+    # training on all tricks of verion 1 and test on all tricks of version 2 
+    # caused a shifted null distribution below chance, hence resulting in a 
+    # below chance max-statistic null distribution for multiple comparison. 
+    # To resolve the problem we train on tricks of version 1 in odd trials 
+    # and test on tricks of version 2 in even trials. 
+    # DISADVANTAGE: less data
+    # ADVANTAGE: four, instead of two validation folds (version 1/2 x odd/even)
+    
+    # stange and not beautiful solution (that I don't really understand) taken
+    # from here:
+    # (https://stackoverflow.com/questions/28837633/pandas-get-position-of-a-given-index-in-dataframe)
+    
+    label_df['Version'] = label_df.VideoNames.str.contains('1')
+    train1  = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==0) & (label_df.Version==0)].index))
+    test1   = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==1) & (label_df.Version==1)].index))
+    train2  = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==1) & (label_df.Version==0)].index))
+    test2   = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==0) & (label_df.Version==1)].index))
+    train3  = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==0) & (label_df.Version==1)].index))
+    test3   = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==1) & (label_df.Version==0)].index))
+    train4  = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==1) & (label_df.Version==1)].index))
+    test4   = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==0) & (label_df.Version==0)].index))
+    ps = [[train1, test1], [train2,test2],
+          [train3, test3], [train4,test4]]
 else:
     raise
 
@@ -387,7 +411,6 @@ for r, roi in tqdm(enumerate(ROIS)):
     
     # the actual decoding
     targets                 = np.asarray(label_df.Labels)
-    chunks                  = np.asarray(label_df.Chunks)
     runs_for_permutation    = np.asarray(label_df.Runs)
     if N_PERMS > 0:
         res = permutation_test_score(
@@ -395,7 +418,7 @@ for r, roi in tqdm(enumerate(ROIS)):
             X=ROI_data,
             y=targets,
             groups=runs_for_permutation,
-            cv=PredefinedSplit(chunks),
+            cv=ps,
             n_permutations=N_PERMS,
             random_state=rng_seed,
             n_jobs=N_PROC,
@@ -406,6 +429,8 @@ for r, roi in tqdm(enumerate(ROIS)):
 
     decode_accuracy.append(accuracy-1/len(set(targets)))
     decode_p_value.append(p_value)
+    plt.hist(null_distribution,bins=50)
+    plt.show()
 
     with h5py.File(output_dir, 'w') as f:
         f.create_dataset('accuracy', data=accuracy)
@@ -457,6 +482,7 @@ except git.InvalidGitRepositoryError:
 # create a log file, that saves some information about the run script
 with open(os.path.join(RESULTS_DIR,'logfile.txt'), 'w+') as writer:
     writer.write('Codeversion: {} \n'.format(git_hash))
+    writer.write('Random seed: {} \n'.format(rng_seed))
     writer.write('Number of permutations: {}\n'.format(N_PERMS))
     writer.write('Scaling: {}\n'.format(SCALE))
     writer.write('Cutoff: {}\n'.format(str(CUTOFF)))
