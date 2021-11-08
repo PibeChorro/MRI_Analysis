@@ -12,9 +12,9 @@ def eyedata2pandasframe(directory):
                 blinks: numpy array containing information about blink onsets and offsets 
                 trials: numpy array containing information about trial onsets 
     '''
-    all_data = []
     data_header = {0: 'TimeStamp',1: 'X_Coord',2: 'Y_Coord',3: 'Diameter'}
     event_header = {0: 'Start', 1: 'End'}
+    all_data = []
     start_reading = False
     fix_timestamps = []
     sac_timestamps = []

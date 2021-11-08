@@ -96,12 +96,12 @@ DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
 RESULT_DIR = os.path.join(DERIVATIVES_DIR, 'eyetracking')
 
 # ANALYSIS 
-fps = 25
-spf = 1/fps
+fps = 25    # frames per second of the videos
+spf = 1/fps # inverse of fps
 
-slack_time          = 0.025
-# (Knappen et al 2016)
-margin              = 0.15 
+# ET preprocessing following Knappen et al 2016
+# removing data from 0.15 seconds before and after blinks
+margin              = 0.15
 interpolation_limit = margin*2 + 0.2
 
 #filter
@@ -109,18 +109,34 @@ butter_order    = 3
 high_pass_freq  = 0.02
 low_pass_freq   = 4
 
-ET_files = glob.glob(os.path.join(SUB,'func','*_recording-eyetracking_physio.asc'))
-
+# raw unprocessed ET data files
+ET_files = glob.glob(os.path.join(RAW_DIR, SUB, 'func',
+                                  '*_recording-eyetracking_physio.asc'))
 ET_files.sort()
 
+# event files containing trial onset, duration video name and surprise response
+
 for ET in ET_files:
+    # get run number. We do not want to enumerate ET_files because some subs
+    # miss some data files
     run = list(map(int, re.findall(r'\d+', os.path.basename(ET))))[1]
     
+    # read in the coresponding event file depending on run number, because
+    # some subjects miss some ET data, so the nth ET file does not necessarily
+    # need to be the coresponding event file
+    event_file = glob.glob(os.path.join(RAW_DIR,SUB,'func',
+                                        '*run-{:02d}_events.tsv'.format(run)))
+    try:
+        event_df = pd.read_csv(filepath_or_buffer=event_file[0],sep='\t')
+    except:
+        print('could not read event file')
+    
+    # call own function that reads out infos from the ET ascii file
     ET_data, fixations, saccades, blinks, trials, sample_rate, frame_dim = eyedata2pandasframe(ET)
     frame_width = frame_dim[2]
     frame_height = frame_dim[3]
     
-    # set all ET data values during blinks (+- 100ms) to np.nan
+    # set all ET data values during blinks (+- 150ms) to np.nan
     for b_s,b_e in zip(blinks.Start,blinks.End):
         ET_data.Diameter[(ET_data.TimeStamp>b_s-margin) & (ET_data.TimeStamp<b_e+margin)] = np.nan
         ET_data.X_Coord[(ET_data.TimeStamp>b_s-margin) & (ET_data.TimeStamp<b_e+margin)] = np.nan
@@ -141,37 +157,33 @@ for ET in ET_files:
                                  inplace=True)
     
     # filter stuff
-    high_pass_cof_sample = high_pass_freq / (sample_rate/2)
-    low_pass_cof_sample = low_pass_freq / (sample_rate/2)
+    high_pass_cof_sample    = high_pass_freq / (sample_rate/2)
+    low_pass_cof_sample     = low_pass_freq / (sample_rate/2)
     
-    bbp, abp = signal.butter(butter_order, [high_pass_cof_sample, low_pass_cof_sample], btype='bandpass')
+    bbp, abp = signal.butter(butter_order, 
+                             [high_pass_cof_sample, low_pass_cof_sample], 
+                             btype='bandpass')
 
     diameter_filtered = []
-
-    for tr in range(len(trials)-1):
-        tmp_diameter = ET_data.Diameter[(ET_data.TimeStamp>=trials[tr]) & 
-                                        (ET_data.TimeStamp<trials[tr+1])]
+    
+    # iterate over trials and filter data within a trial
+    for idx,tr in event_df.iterrows():
+        tmp_diameter = ET_data.Diameter[(ET_data.TimeStamp>=tr.onset) & 
+                                        (ET_data.TimeStamp<=tr.rating_onset)]
         tmp_diameter_bp = signal.filtfilt(bbp, abp, tmp_diameter)
         diameter_filtered.extend(tmp_diameter_bp)
-    tmp_diameter = ET_data.Diameter[ET_data.TimeStamp>=trials[-1]]
-    tmp_diameter_bp = signal.filtfilt(bbp, abp, tmp_diameter)
-    diameter_filtered.extend(tmp_diameter_bp)
 
     ET_data['Diameter_filtered'] = diameter_filtered
     
     # normalization - mean over trials, standard deviation over session (run)
     diameter_std = ET_data.Diameter_filtered.std() 
     diameter_normalized = []
-    for tr in range(len(trials)-1):
-        tmp_diameter = ET_data.Diameter_filtered[(ET_data.TimeStamp>=trials[tr]) & 
-                                        (ET_data.TimeStamp<trials[tr+1])]
+    for idx,tr in event_df.iterrows():
+        tmp_diameter = ET_data.Diameter_filtered[(ET_data.TimeStamp>=tr.onset) & 
+                                        (ET_data.TimeStamp<=tr.rating_onset)]
         tmp_diameter -= np.nanmean(tmp_diameter)
         tmp_diameter /= diameter_std
         diameter_normalized.extend(tmp_diameter)
-    tmp_diameter = ET_data.Diameter_filtered[ET_data.TimeStamp>=trials[-1]]
-    tmp_diameter -= np.nanmean(tmp_diameter)
-    tmp_diameter /= diameter_std
-    diameter_normalized.extend(tmp_diameter)
     
     ET_data['Diameter_normalized'] = diameter_normalized
     
@@ -182,12 +194,18 @@ for ET in ET_files:
     #ET_data.Y_Coord[ET_data.Y_Coord > frame_height] = frame_height
     #ET_data.Y_Coord[ET_data.Y_Coord < 0] = 0
     
+    #Resample data --> one data point per frame (use mean)
+    ET_data = ET_data.resample(str(spf*1000)+'ms').mean()
+    
     # save preprocessed data 
     file_name = SUB+'_task-magic_run-{:02d}_recording-eyetracking_physio_preprocessed.tsv'.format(run)
     save_dir = os.path.join(RESULT_DIR, SUB)
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
-    ET_data.to_csv(path_or_buf=os.path.join(save_dir,file_name), sep='\t')
+    ET_data.to_csv(path_or_buf=os.path.join(save_dir,file_name), 
+                   sep='\t',
+                   na_rep = 'n/a',
+                   index = False)
     
 ##################
 # WRITE LOG FILE #
