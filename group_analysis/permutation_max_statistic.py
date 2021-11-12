@@ -229,7 +229,6 @@ for r, roi in enumerate(ROIS):
     mean_null_distribution  = np.mean(null_distributions,axis = 0)
     accuracy_mean_over_subs.append(mean_accuracy)
     null_distribution_mean_over_subs.append(mean_null_distribution)
-    null_distribution_mean_over_subs.append()
     
     # plot mean null distribution for ROI over subjects
     plt.hist(mean_null_distribution,
@@ -261,22 +260,8 @@ result_dict = {
 
 result_df = pd.DataFrame(data=result_dict,
                          columns=result_dict.keys())
-
-# save the mean accuracies for the ROIs, the max statistic null distribution
-# and the p-values for decoding accuracies for the ROIs
-with h5py.File(os.path.join(RESULTS_DIR,'permutation-max-statistic.hdf5'), 'w') as f:
-    f.create_dataset('results', data=result_df)
-    f.create_dataset('max_null_distribution', data=max_statistic_null_distribution)
     
 # FOURTH STEP
-# plot p-values for ROIs
-p_val_fig = plt.figure()
-plt.bar(range(len(ps)), ps)
-plt.ylim((0,0.1))
-plt.axhline(0.05,color='green')
-plt.xticks(np.arange(len(ROIS)),ROIS,rotation=45)
-p_val_fig.savefig(os.path.join(RESULTS_DIR,'p_values.png'))
-
 # plot confidence intervalls for all ROIs and max statistic distribution in
 # one figure and draw significance threshold and theoretical chance level
 CI_fig, ax= plt.subplots(1,2,sharey=True,figsize=(20,10))
@@ -302,9 +287,14 @@ ax[1].axhline(1/NUM_LABELS,
               linestyle='--', 
               label='Chance level')
 
+# empty lists for CI-bounds
+lows = []
+highs = []
 # for all ROIs plot the mean and CI 
 for a, accs in enumerate(roi_accuracies):
     mean, low, high = mean_confidence_interval(accs)
+    lows.append(low)
+    highs.append(high)
     ax[1].plot([a,a],[low,high],'b')
     ax[1].plot(a,mean,'b*')
 
@@ -319,6 +309,14 @@ max_stat_fig = plt.figure()
 plt.hist(max_statistic_null_distribution,bins=30)
 plt.axvline(1/NUM_LABELS)
 max_stat_fig.savefig(os.path.join(RESULTS_DIR,'max_statistic_null_distribution.png'))
+
+# save the mean accuracies for the ROIs, the max statistic null distribution
+# and the p-values for decoding accuracies for the ROIs
+result_df['CI_lower'] = lows
+result_df['CI_higher'] = highs
+with h5py.File(os.path.join(RESULTS_DIR,'permutation-max-statistic.hdf5'), 'w') as f:
+    f.create_dataset('results', data=result_df)
+    f.create_dataset('max_null_distribution', data=max_statistic_null_distribution)
 
 
 ##################
