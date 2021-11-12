@@ -94,7 +94,7 @@ else:
 
 # variables for path selection and data access
 HOME            = str(Path.home())
-PROJ_DIR        = os.path.join(HOME, 'Documents/Master_Thesis/DATA/MRI')
+PROJ_DIR        = os.path.join(HOME, 'Documents/Magic_fMRI/DATA/MRI')
 DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
 if SMOOTHING_SIZE > 0:
     GLM_DATA_DIR    = str(SMOOTHING_SIZE)+'mm-smoothed-nativespace' 

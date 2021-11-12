@@ -88,10 +88,10 @@ def eyedata2pandasframe(directory):
         sample_rate = float (sample_rate_info[4])
 
         # convert into pandas fix_data Frames for a better overview
-        all_data = pd.DataFrame(all_data)
-        fix_timestamps = pd.DataFrame(fix_timestamps)
-        sac_timestamps = pd.DataFrame(sac_timestamps)
-        blink_timestamps = pd.DataFrame(blink_timestamps)
+        all_data            = pd.DataFrame(all_data)
+        fix_timestamps      = pd.DataFrame(fix_timestamps)
+        sac_timestamps      = pd.DataFrame(sac_timestamps)
+        blink_timestamps    = pd.DataFrame(blink_timestamps)
         
         trials = np.array(trials)
         

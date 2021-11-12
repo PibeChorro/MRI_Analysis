@@ -94,7 +94,6 @@ import git
 # data structuration and calculations
 import pandas as pd  # to create data frames
 import numpy as np   # most important numerical calculations
-# library for neuroimaging
 import pingouin as pg
 # optimize time performance
 import time
@@ -126,7 +125,7 @@ PROJ_DIR            = os.path.join(HOME, 'Documents/Magic_fMRI/DATA/MRI')
 RAWDATA_DIR         = os.path.join(PROJ_DIR, 'rawdata')
 DERIVATIVES_DIR     = os.path.join(PROJ_DIR, 'derivatives')
 RESULTS_DIR         = os.path.join(DERIVATIVES_DIR, 'univariate-ROI',
-                               data_analyzed,'MagicEffects')
+                               data_analyzed,'VideoType')
 
 # define ROIs
 ROIS = [
@@ -152,19 +151,12 @@ VIDEO_TYPE = [
     'Surprise'
     ]
 
-EFFECTS = [
-    'Appear',
-    'Change',
-    'Vanish'
-    ]
-
 averaged_dict = {}
 for roi in ROIS:
     averaged_dict[roi] = []
     
 averaged_dict['sub_ID']     = []
 averaged_dict['pre_post']   = []
-averaged_dict['Effect']     = []
 
 # read in the previously created data frame
 DATA_DF = pd.read_csv(os.path.join(RESULTS_DIR,'data_frame.csv'))
@@ -177,48 +169,40 @@ DATA_DF = pd.read_csv(os.path.join(RESULTS_DIR,'data_frame.csv'))
 for s,sub in enumerate(np.unique(DATA_DF.Subject_ID)):
     # get a subset of the data frame for the current subject
     sub_data_frame = DATA_DF[DATA_DF.Subject_ID==sub]
-    # iterate over magic effects 
-    for effect in EFFECTS:
-        # iterate over rois PRE revelation
-        for roi in ROIS:
-            mag_eff = sub_data_frame[roi][(sub_data_frame.Effect==effect)&  # only data from the current effect
-                                          (sub_data_frame.Type=='Magic')&   # only magic data
-                                          (sub_data_frame.PrePost==0)]      # only pre revelation
-            # average the pre revelation magic effect data
-            avg_mag = np.mean(mag_eff)
-            
-            con_eff = sub_data_frame[roi][(sub_data_frame.Effect==effect)&  # only data from the current effect
-                                          (sub_data_frame.Type=='Control')& # only control data
-                                          (sub_data_frame.PrePost==0)]      # only pre revelation
-            # average the pre revelation controll effect data
-            avg_con = np.mean(con_eff)
-            
-            # get difference and add it to the array of the current roi in dictionary
-            mag_minus_con = avg_mag-avg_con
-            averaged_dict[roi].append(mag_minus_con)
-            
-        # once every roi is done, add the subject ID and pre to the dict
-        averaged_dict['sub_ID'].append(s+1)
-        averaged_dict['pre_post'].append('pre')
-        averaged_dict['Effect'].append(effect)
+    # iterate over rois PRE revelation
+    for roi in ROIS:
+        mag_eff = sub_data_frame[roi][(sub_data_frame.Type=='Magic')&   # only magic data
+                                      (sub_data_frame.PrePost==0)]      # only pre revelation
+        # average the pre revelation magic effect data
+        avg_mag = np.mean(mag_eff)
         
-        # exactly the same as in the loop over ROIs above, but for post revelation data
-        for roi in ROIS:
-            mag_eff = sub_data_frame[roi][(sub_data_frame.Effect==effect)&  # only data from the current effect
-                                          (sub_data_frame.Type=='Magic')&   # only magic data
-                                          (sub_data_frame.PrePost==1)]      # only post revelation
-            avg_mag = np.mean(mag_eff)
-            
-            con_eff = sub_data_frame[roi][(sub_data_frame.Effect==effect)&  # only data from the current effect
-                                          (sub_data_frame.Type=='Control')& # only control data
-                                          (sub_data_frame.PrePost==1)]      # only post revelation
-            avg_con = np.mean(con_eff)
-            
-            mag_minus_con = avg_mag-avg_con
-            averaged_dict[roi].append(mag_minus_con)
-        averaged_dict['sub_ID'].append(s+1)
-        averaged_dict['pre_post'].append('post')
-        averaged_dict['Effect'].append(effect)
+        con_eff = sub_data_frame[roi][(sub_data_frame.Type=='Control')& # only control data
+                                      (sub_data_frame.PrePost==0)]      # only pre revelation
+        # average the pre revelation controll effect data
+        avg_con = np.mean(con_eff)
+        
+        # get difference and add it to the array of the current roi in dictionary
+        mag_minus_con = avg_mag-avg_con
+        averaged_dict[roi].append(mag_minus_con)
+        
+    # once every roi is done, add the subject ID and pre to the dict
+    averaged_dict['sub_ID'].append(s+1)
+    averaged_dict['pre_post'].append('pre')
+    
+    # exactly the same as in the loop over ROIs above, but for post revelation data
+    for roi in ROIS:
+        mag_eff = sub_data_frame[roi][(sub_data_frame.Type=='Magic')&   # only magic data
+                                      (sub_data_frame.PrePost==1)]      # only post revelation
+        avg_mag = np.mean(mag_eff)
+        
+        con_eff = sub_data_frame[roi][(sub_data_frame.Type=='Control')& # only control data
+                                      (sub_data_frame.PrePost==1)]      # only post revelation
+        avg_con = np.mean(con_eff)
+        
+        mag_minus_con = avg_mag-avg_con
+        averaged_dict[roi].append(mag_minus_con)
+    averaged_dict['sub_ID'].append(s+1)
+    averaged_dict['pre_post'].append('post')
     
 # convert dictionary into a pandas DataFrame for further analysis
 average_df = pd.DataFrame(averaged_dict, columns=averaged_dict.keys())
@@ -228,7 +212,7 @@ average_df.to_csv(path_or_buf=os.path.join(RESULTS_DIR,'prepared_dataframe.csv')
 # iterate over ROIS
 for r,roi in enumerate(ROIS):
     # now iterate over the rois you want to use for the analysis
-    #output_dir = os.path.join(RESULTS_DIR,roi+'_rmANOVA.hdf5')
+    # output_dir = os.path.join(RESULTS_DIR,roi+'_rmANOVA.hdf5')
     # rmaov = AnovaRM(data=average_df,
     #                 depvar=roi,
     #                 subject='sub_ID',
@@ -244,26 +228,19 @@ for r,roi in enumerate(ROIS):
     # no matter if you provide detailed or correction                           #
     #############################################################################
     
-    spher = pg.sphericity(data=average_df, 
-                          dv=roi, 
-                          within=['pre_post','Effect'],
-                          subject='sub_ID')
+    x_var = average_df[average_df.pre_post=='pre'][roi]
+    y_var = average_df[average_df.pre_post=='post'][roi]
+    ttest_res = pg.ttest(x=x_var,y=y_var,paired=True)
+    # aov_res = pg.rm_anova(data=average_df, 
+    #                       dv=roi, 
+    #                       within=['pre_post','Effect'],
+    #                       subject='sub_ID',
+    #                       correction = not spher.spher,
+    #                       detailed=True)
     
-    aov_res = pg.rm_anova(data=average_df, 
-                          dv=roi, 
-                          within=['pre_post','Effect'],
-                          subject='sub_ID',
-                          correction = not spher.spher,
-                          detailed=True)
-    
-    if not spher.spher:
-        aov_res.to_csv(path_or_buf=os.path.join(RESULTS_DIR,
-                                    roi+'_rmAOV_results_corrected.csv'),
-                       index=False)
-    else:
-        aov_res.to_csv(path_or_buf=os.path.join(RESULTS_DIR,
-                                    roi+'_rmAOV_results.csv'),
-                       index=False)
+    ttest_res.to_csv(path_or_buf=os.path.join(RESULTS_DIR,
+                                roi+'_ttest_results.csv'),
+                   index=False)
         
 ##################
 # WRITE LOG FILE #

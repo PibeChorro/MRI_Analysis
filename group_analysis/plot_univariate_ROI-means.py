@@ -88,7 +88,6 @@ import git
 # data structuration and calculations
 import pandas as pd  # to create data frames
 import numpy as np   # most important numerical calculations
-import scipy.stats as st
 # optimize time performance
 import time
 # plotting
@@ -147,7 +146,7 @@ elif ANALYZED == 'video':
 
 # variables for path selection and data access
 HOME            = str(Path.home())
-PROJ_DIR        = os.path.join(HOME, 'Documents/Master_Thesis/DATA/MRI')
+PROJ_DIR        = os.path.join(HOME, 'Documents/Magic_fMRI/DATA/MRI')
 RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
 DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'univariate-ROI',

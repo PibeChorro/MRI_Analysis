@@ -98,7 +98,7 @@ else:
 
 # variables for path selection and data access
 HOME            = str(Path.home())
-PROJ_DIR        = os.path.join(HOME, 'Documents/Master_Thesis/DATA/MRI')
+PROJ_DIR        = os.path.join(HOME, 'Documents/Magic_fMRI/DATA/MRI')
 RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
 DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'univariate-ROI',
@@ -211,13 +211,15 @@ if p_to_report[2]<0.05:
                                               dv='Ratings', 
                                               within= ['PrePost','Type'],
                                               subject='ids',
-                                              alternative='two-sided')
+                                              alternative='two-sided',
+                                              padjust='fdr_bh')
     
     post_hoc_res_Type = pg.pairwise_ttests(data=na_removed, 
                                            dv='Ratings', 
                                            within= ['Type','PrePost'],
                                            subject='ids',
-                                           alternative='two-sided')
+                                           alternative='two-sided',
+                                           padjust='fdr_bh')
     
     post_hoc_res = pd.concat ([post_hoc_res_PrePost, post_hoc_res_Type])
     post_hoc_res.to_csv(path_or_buf=os.path.join(DATA_DIR,'post_hoc_PrePost_Type_results.csv'),
@@ -305,6 +307,56 @@ lower = eff_values-eff_sems
 plt.plot(eff_values)
 plt.fill_between([0,1,2], upper, lower, alpha=0.2)
 
+# Since appear magic tricks are significantly less surprising than change and
+# vanish we compare appear against surprise
+# first remove missing values and average over conditions
+effect_df = data_frame[data_frame.Type=='Magic']
+effect_na_removed = pg.remove_rm_na(data=effect_df,
+                                    dv='Ratings', 
+                                    subject='ids',
+                                    within='Effect',
+                                    aggregate='mean')
+
+type_na_removed = pg.remove_rm_na(data=data_frame,
+                                  dv='Ratings', 
+                                  subject='ids',
+                                  within='Type',
+                                  aggregate='mean')
+
+xvar = effect_na_removed.Ratings[effect_na_removed.Effect=='Appear']
+yvar = type_na_removed.Ratings[type_na_removed.Type=='Surprise']
+
+ttest_res_all = pg.ttest(x=xvar, y=yvar,paired=True,alternative='greater')
+
+effect_na_removed = pg.remove_rm_na(data=effect_df,
+                                    dv='Ratings', 
+                                    subject='ids',
+                                    within=['Effect','PrePost'],
+                                    aggregate='mean')
+
+type_na_removed = pg.remove_rm_na(data=data_frame,
+                                  dv='Ratings', 
+                                  subject='ids',
+                                  within=['Type','PrePost'],
+                                  aggregate='mean')
+
+xvar = effect_na_removed.Ratings[(effect_na_removed.Effect=='Appear') & 
+                                 (effect_na_removed.PrePost==0)]
+yvar = type_na_removed.Ratings[(type_na_removed.Type=='Surprise') &
+                               (type_na_removed.PrePost==0)]
+ttest_res_pre = pg.ttest(x=xvar, y=yvar,paired=True,alternative='greater')
+
+xvar = effect_na_removed.Ratings[(effect_na_removed.Effect=='Appear') & 
+                                 (effect_na_removed.PrePost==1)]
+yvar = type_na_removed.Ratings[(type_na_removed.Type=='Surprise') &
+                               (type_na_removed.PrePost==1)]
+ttest_res_post = pg.ttest(x=xvar, y=yvar,paired=True,alternative='greater')
+
+appear_ttest_res = pd.concat ([ttest_res_all, ttest_res_pre, ttest_res_post])
+appear_ttest_res['PrePost'] = ['all', 'pre', 'post']
+
+appear_ttest_res.to_csv(path_or_buf=os.path.join(DATA_DIR,
+                                                 'appear_surprise_ttest_res.csv'))
 
 ##################
 # WRITE LOG FILE #

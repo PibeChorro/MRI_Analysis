@@ -90,7 +90,7 @@ SUB             = ARGS.sub
 ################################################
 HOME            = str(Path.home())
 # DATA
-PROJ_DIR        = os.path.join(HOME, 'Documents/Master_Thesis/DATA/MRI')
+PROJ_DIR        = os.path.join(HOME, 'Documents/Magic_fMRI/DATA/MRI')
 RAW_DIR         = os.path.join(PROJ_DIR, 'rawdata')
 DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
 RESULT_DIR = os.path.join(DERIVATIVES_DIR, 'eyetracking')
@@ -130,9 +130,13 @@ for ET in ET_files:
         event_df = pd.read_csv(filepath_or_buffer=event_file[0],sep='\t')
     except:
         print('could not read event file')
+        raise
     
     # call own function that reads out infos from the ET ascii file
     ET_data, fixations, saccades, blinks, trials, sample_rate, frame_dim = eyedata2pandasframe(ET)
+    # Cut off all data, that exceeds the last trial
+    ET_data = ET_data[ET_data.TimeStamp<event_df.onset.iloc[-1]+
+                      event_df.duration.iloc[-1]]
     frame_width = frame_dim[2]
     frame_height = frame_dim[3]
     
@@ -169,7 +173,7 @@ for ET in ET_files:
     # iterate over trials and filter data within a trial
     for idx,tr in event_df.iterrows():
         tmp_diameter = ET_data.Diameter[(ET_data.TimeStamp>=tr.onset) & 
-                                        (ET_data.TimeStamp<=tr.rating_onset)]
+                                        (ET_data.TimeStamp<tr.onset+tr.duration)]
         tmp_diameter_bp = signal.filtfilt(bbp, abp, tmp_diameter)
         diameter_filtered.extend(tmp_diameter_bp)
 
@@ -180,7 +184,7 @@ for ET in ET_files:
     diameter_normalized = []
     for idx,tr in event_df.iterrows():
         tmp_diameter = ET_data.Diameter_filtered[(ET_data.TimeStamp>=tr.onset) & 
-                                        (ET_data.TimeStamp<=tr.rating_onset)]
+                                        (ET_data.TimeStamp<tr.onset+tr.duration)]
         tmp_diameter -= np.nanmean(tmp_diameter)
         tmp_diameter /= diameter_std
         diameter_normalized.extend(tmp_diameter)

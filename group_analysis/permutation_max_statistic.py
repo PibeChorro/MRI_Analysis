@@ -97,6 +97,7 @@ import git
 import h5py
 # data structuration and calculations
 import numpy as np   # most important numerical calculations
+import pandas as pd
 import scipy.stats as st
 # optimize time performance
 import time
@@ -139,7 +140,7 @@ OVER = ARGS.over
 # ALL IMPORTANT DIRECTORIES #
 #############################
 HOME            = str(Path.home())
-PROJ_DIR        = os.path.join(HOME, 'Documents/Master_Thesis/DATA/MRI')
+PROJ_DIR        = os.path.join(HOME, 'Documents/Magic_fMRI/DATA/MRI')
 DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
 
 RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
@@ -228,6 +229,7 @@ for r, roi in enumerate(ROIS):
     mean_null_distribution  = np.mean(null_distributions,axis = 0)
     accuracy_mean_over_subs.append(mean_accuracy)
     null_distribution_mean_over_subs.append(mean_null_distribution)
+    null_distribution_mean_over_subs.append()
     
     # plot mean null distribution for ROI over subjects
     plt.hist(mean_null_distribution,
@@ -251,12 +253,20 @@ for acc in accuracy_mean_over_subs:
 ps = np.asarray(ps)
 ps = (ps+1)/(max_statistic_null_distribution.shape[0]+1)
 
+result_dict = {
+    'ROIs': ROIS,
+    'mean_accuracies': accuracy_mean_over_subs,
+    'p_values': ps
+    }
+
+result_df = pd.DataFrame(data=result_dict,
+                         columns=result_dict.keys())
+
 # save the mean accuracies for the ROIs, the max statistic null distribution
 # and the p-values for decoding accuracies for the ROIs
 with h5py.File(os.path.join(RESULTS_DIR,'permutation-max-statistic.hdf5'), 'w') as f:
-    f.create_dataset('mean_accuracy', data=accuracy_mean_over_subs)
+    f.create_dataset('results', data=result_df)
     f.create_dataset('max_null_distribution', data=max_statistic_null_distribution)
-    f.create_dataset('p_values', data=ps)
     
 # FOURTH STEP
 # plot p-values for ROIs

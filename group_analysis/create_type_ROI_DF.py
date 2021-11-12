@@ -41,9 +41,8 @@
 ##########################
 # PURPOSE OF THIS SCRIPT #
 ##########################
-# The purpose of this script is to read in the beta estimates for every video
-# presented for a set of ROIs and add the behavioural rating (TO-DO add even
-# the pupil data).
+# The purpuse of this script is to create a data frame that contains the mean
+# values of all voxels within a set of ROIs.
 
 ################################
 # FUNCTIONALITY OF THIS SCRIPT #
@@ -52,16 +51,15 @@
 # SPM12 when the GLM is estimated. From this SPM.mat file we read out the
 # names of the beta NIfTI images and the names of the regressors, that 
 # correspond to the beta image.
-# At the same time the behavioral data from subjects are read in and added 
 # This is done for every subject and with these information a pandas DataFrame
 # is created looking like that: 
-# Idx   Regressors          BetaNames       Subject_ID  Rating
-# 0     Card_Appear_Magic   beta0001.nii    1           4
-# 1     Card_Change_Control beta0002.nii    1           1
+# Idx   Regressors          BetaNames       Subject_ID
+# 0     Card_Appear_Magic   beta0001.nii    1
+# 1     Card_Change_Control beta0002.nii    1
 # .
 # .
 # .
-# X     Constant            beta0180        24          nan
+# X     Constant            beta0180        24
 
 # Then the run number (read out from the Regressors) is added, als well as the
 # object, magic effect, if it was pre or post revelation and the video type 
@@ -73,16 +71,13 @@
 # specific ROI mask. This ROI mask is applied on all beta images of interest 
 # and for every masked beta image a mean value is calculated. This long list 
 # is then added to the dataframe.
-# Idx   Regressors          BetaNames       Subject_ID      V1      V2      ...
-# 0     Card_Appear_Magic   beta0001.nii    1           4   0.25    0.1
-# 1     Card_Change_Control beta0002.nii    1           1   -0.32   0.7
+# Idx   Regressors          BetaNames       Subject_ID  V1      V2      ...
+# 0     Card_Appear_Magic   beta0001.nii    1           0.25    0.1
+# 1     Card_Change_Control beta0002.nii    1           -0.32   0.7
 # .
 # .
 # .
-# X     Ball_Surprise3      beta0180        24          3   0.11    -2.1
-#
-# Finally for all subjects the events.tsv files of the 12 runs are read in and 
-# surprise ratings are added to the data_frame
+# X     Ball_Surprise3      beta0180        24          0.11    -2.1
 #
 # The resulting dataframe is saved in a hdf5/csv file
 
@@ -152,26 +147,25 @@ PROJ_DIR        = os.path.join(HOME, 'Documents/Magic_fMRI/DATA/MRI')
 RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
 RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'univariate-ROI',
-                               data_analyzed,'EveryVideo')
+                               data_analyzed,'VideoType')
 FREESURFER_DIR  = os.path.join(DERIVATIVES_DIR, 'freesurfer')
 if SMOOTHING_SIZE > 0:
     GLM_DATA_DIR    = str(SMOOTHING_SIZE)+'mm-smoothed-nativespace' 
     FLA_DIR         = os.path.join(DERIVATIVES_DIR,'spm12',
                                'spm12-fla','WholeBrain',
-                               'EveryVideo',GLM_DATA_DIR,
+                               'VideoTypes',GLM_DATA_DIR,
                                data_analyzed)
 else:
     GLM_DATA_DIR    = 'nativespace' 
     FLA_DIR         = os.path.join(DERIVATIVES_DIR,'spm12',
                                'spm12-fla','WholeBrain',
-                               'EveryVideo',GLM_DATA_DIR,
+                               'VideoTypes',GLM_DATA_DIR,
                                data_analyzed)
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
     
-SUBJECTS_WHOLE_PATH = glob.glob(os.path.join(FLA_DIR,'sub-*'))
-SUBJECTS_WHOLE_PATH.sort()
-SUBJECTS = [os.path.basename(sub) for sub in SUBJECTS_WHOLE_PATH]
+SUBJECTS = glob.glob(os.path.join(FLA_DIR,'sub-*'))
+SUBJECTS.sort()
 
 # define ROIs
 ROIS = [
@@ -181,7 +175,8 @@ ROIS = [
         'FEF', 'IPS',
         'ACC', 'PCC', 
         'IFG', 'aINSULA', 
-        'IFJ', 'PHT', 'PF'
+        'IFJ', 'PHT', 'PF',
+        'DMN', 'DAN', 'VAN', 'visual'
       ]
 
 # objects used on magic tricks
@@ -197,23 +192,11 @@ VIDEO_TYPE = [
     'Surprise'
     ]
 
-EFFECTS = [
-    'Appear',
-    'Change',
-    'Vanish'
-    ]
-
 # empty lists to store the regressor names, names of beta images and subjec
 # IDs
-data_dict = {
-'regressors': [],
-'beta_dirs': [],
-'ids': [],
-'runs': [],
-    }
-for roi in ROIS:
-    data_dict[roi] = []
-ratings = []
+regressors  = []
+beta_dirs   = []
+ids         = []
 
 # iterate over subjects to read in ALL the data in one huge data frame
 for s, sub in enumerate(SUBJECTS):
@@ -230,30 +213,63 @@ for s, sub in enumerate(SUBJECTS):
     # The corresponding Regressor names - are in form of 'Sn(<run-number>) <Regressor-Name>*bf(1)'
     sub_regressors = readmat.load(sub_mat_dir,isStruct=True)['SPM']['xX']['name']
     sub_id = [s+1]*len(sub_regressors)
-    # This complex loop is necessary to get the run number out of the regressor name
-    x       = [' '.join(re.findall(r"\((\d+)\)",string)) for string in sub_regressors]
-    sub_run = [int(s_filter.split()[0]) for s_filter in x]
     
-    data_dict['regressors'].extend(sub_regressors)
-    data_dict['beta_dirs'].extend(sub_beta_names)
-    data_dict['ids'].extend(sub_id)
-    data_dict['runs'].extend(sub_run)
-    
-    # read in the beta images from current subject and calculate its mean for 
-    # each roi
+    regressors.extend(sub_regressors)
+    beta_dirs.extend(sub_beta_names)
+    ids.extend(sub_id)
 
-    betas = []
-    for beta_file in sub_beta_names:
-        beta_dir = os.path.join(FLA_DIR, sub, beta_file)
-        beta_img = nib.load(beta_dir)
-        beta_data = beta_img.get_fdata()
-        beta_data = beta_data.flatten()
-        betas.append(beta_data)
-    betas = np.array(betas)
-            
-    for roi in ROIS:
-        # get ROI mask
-        roi_dir = os.path.join(FREESURFER_DIR,sub, 'corrected_ROIs')
+# store beta filenames and regressornames in a dictionary
+data_dict = {
+    'Regressors': regressors,
+    'BetaNames': beta_dirs,
+    'Subject_ID': ids
+}
+
+# convert dictionary into a pandas DataFrame for further analysis
+label_df = pd.DataFrame(data_dict, columns=data_dict.keys())
+
+# This complex loop is necessary to get the run number out of the regressor name
+x       = [' '.join(re.findall(r"\((\d+)\)",string)) 
+           for string in label_df.Regressors]
+runs    = [int(s_filter.split()[0]) for s_filter in x]
+
+# add further data to DataFrame
+label_df['Runs']    = runs                  # In which run
+pre_post_inblock    = (label_df.Runs-1)//2  # Resulting in 0,0,1,1,2,2,3,3 ...
+label_df['PrePost'] = pre_post_inblock%2    # Resulting in 0,0,1,1,0,0,1,1 ...
+label_df['Objects'] = np.nan                # Objects used in the videos
+label_df['Type']    = np.nan                # is it magic, control or surprise
+
+# again a complex process to throw out regressors of no interest (like realignment)
+regressors_of_interest  = [True if ('Magic' in n) 
+                           or ('Control' in n) 
+                           or ('Surprise' in n) 
+                           else False for n in label_df.Regressors]
+# throw out all rows of regressors of no interest
+label_df = label_df.iloc[regressors_of_interest]
+    
+# Check for every entry in Regressors if it contains one of the object names. 
+# If so, assign the object name
+for o in OBJECTS:
+    label_df.Objects = np.where(label_df.Regressors.str.contains(o),o,label_df.Objects)
+
+# Check for every entry in Regressors if it contains one of the type names. 
+# If so, assign the type name
+for t in VIDEO_TYPE:
+    label_df.Type = np.where(label_df.Regressors.str.contains(t),t,label_df.Type)
+    
+# inner loop - iterating over mask (=ROIs)
+for r, roi in enumerate(ROIS):
+    # empty list, that that will be filled with the mean of all voxels within
+    # a ROI for all subjects
+    roi_beta_means = []
+    
+    # iterate over all subjects
+    for s, sub in enumerate(SUBJECTS):
+        # get the directory where the subject specific ROI mask nifti immage
+        # is stored
+        roi_dir = os.path.join(FREESURFER_DIR,'sub-{:02d}'.format(s+1),
+                               'corrected_ROIs')
     
         # Get all NifTi files containing the name of your ROI. Read them in and 
         # combine them to one ROI
@@ -272,61 +288,26 @@ for s, sub in enumerate(SUBJECTS):
         # turn into boolean values
         ROI = ROI>0
         
-        # get data you want to use in the ROI analysis
-        ROI_data = []
-        ROI_data.append([beta[ROI & ~np.isnan(beta)] for beta in betas])
-        ROI_data = np.array(ROI_data[0])
+        # All beta Names of the current subject
+        tpm_beta_series = label_df.BetaNames[label_df.Subject_ID==s+1]
         
-        data_dict[roi].extend(ROI_data.mean(axis=1))
-        
+        # iterate over the subjects beta images, read them in, calculate the
+        # mean of the ROI in that image and append the mean to the list
+        for b, beta in enumerate(tpm_beta_series):
+            beta_nii    = nib.load(os.path.join(sub,beta))  # read in beta NIfTI image
+            beta_data   = beta_nii.get_fdata()                  # get data from NIfTI image
+            beta_nii.uncache()                                  # remove beta image from memory
+            beta_data   = beta_data.flatten()                   # convert into one-dimensional array
+            beta_roi    = beta_data[ROI & ~np.isnan(beta_data)]
+            roi_beta_means.append(beta_roi.mean())
     
-# turn dictionary into a pandas data frame
-data_frame = pd.DataFrame(data=data_dict,columns=data_dict.keys())
-# again a complex process to throw out regressors of no interest (like realignment)
-regressors_of_interest  = [True if ('Magic' in n) 
-                           or ('Control' in n) 
-                           or ('Surprise' in n) 
-                           else False for n in data_frame.regressors]
-data_frame = data_frame.iloc[regressors_of_interest]
-
-data_frame['Objects']   = np.nan                # Objects used in the videos
-data_frame['Effect']    = np.nan                # Which magic effect was performed
-data_frame['Type']      = np.nan                # is it magic, control or surprise
-# data_frame['Rating']    = np.nan                # behavioral surprise rating
-pre_post_inblock        = (data_frame.runs-1)//2
-data_frame['PrePost']    = pre_post_inblock%2    # Labels
-
-# Check for every entry in Regressors if it contains one of the effect names. 
-# If so, assign the effect name
-for e in EFFECTS:
-    data_frame.Effect = np.where(data_frame.regressors.str.contains(e),e,data_frame.Effect)
+    # create a new column in the data frame with the name of the current ROI
+    # and fill the column with the mean beta values of this ROI
+    label_df[roi] = roi_beta_means
     
-# Check for every entry in regressors if it contains one of the object names. 
-# If so, assign the object name
-for o in OBJECTS:
-    data_frame.Objects = np.where(data_frame.regressors.str.contains(o),o,data_frame.Objects)
-
-# Check for every entry in regressors if it contains one of the type names. 
-# If so, assign the type name
-for t in VIDEO_TYPE:
-    data_frame.Type = np.where(data_frame.regressors.str.contains(t),t,data_frame.Type)
-
-###########################
-# get the behavioral data #
-###########################
-# The behavioral data is stored in events.tsv files in the rawdata 
-# directory. 
-# iterate over subjects to read in ALL the data in one huge data frame
-for s, sub in enumerate(SUBJECTS):
-    run_events = glob.glob(os.path.join(RAWDATA_DIR,sub,'func','*events.tsv'))
-    run_events.sort()
-    for event_file in run_events:
-        event_df = pd.read_csv(filepath_or_buffer=event_file,delimiter='\t')
-        ratings.extend(event_df.value)
-        
-data_frame['Ratings'] = ratings
-data_frame.to_csv(path_or_buf=os.path.join(RESULTS_DIR,'ratings_df.csv'))
-
+# save data as hdf5 and as csv file
+label_df.to_hdf(os.path.join(RESULTS_DIR,'data_frame.hdf5'),key='df',mode='w')
+label_df.to_csv(path_or_buf=os.path.join(RESULTS_DIR,'data_frame.csv'))
 
 ##################
 # WRITE LOG FILE #
@@ -349,6 +330,7 @@ except git.InvalidGitRepositoryError:
     git_hash = 'not-found'
 
 # create a log file, that saves some information about the run script
-with open(os.path.join(RESULTS_DIR,'data_frame_creation-logfile.txt'), 'w+') as writer:
+with open(os.path.join(RESULTS_DIR,'meanDF-logfile.txt'), 'w+') as writer:
     writer.write('Codeversion: {} \n'.format(git_hash))
+    writer.write('Smoothing kernel used: {}\n'.format(str(SMOOTHING_SIZE)))
     writer.write('Time for computation: {}h'.format(str((time.time() - T_START)/3600)))
