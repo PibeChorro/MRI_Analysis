@@ -150,11 +150,11 @@ parser.add_argument("--cutoff",     "-c",   nargs='?',  const=np.inf,
 parser.add_argument("--feature",    "-f",   nargs='?',  const='None',   
                     default='None', type=str)
 parser.add_argument("--kernels",    "-k",   nargs='?',  const=12,       
-                    default=1,      type=int)   # how many processes should be run in parallel
+                    default=12,      type=int)   # how many processes should be run in parallel
 parser.add_argument("--runs",       "-r",   nargs="?",  const='pre',    
                     default='pre',  type=str)
 parser.add_argument("--perms",      "-p",   nargs="?",  const=1000,     
-                    default=1000,   type=int)   # how many permutations
+                    default=100,   type=int)   # how many permutations
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
 # assign values 
@@ -216,7 +216,7 @@ SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
 ANALYSIS        = 'ROI-analysis'
 RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic',
                                'decoding_magic_vs_nomagic',RUNS_TO_USE+'_videos',
-                               'SpecialMoment', ANALYSIS, DECODER, SUB)
+                               'SpecialMoment', ANALYSIS, SUB)
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
@@ -273,7 +273,7 @@ runs    = [int(s_filter.split()[0]) for s_filter in x]
 
 # add further data to DataFrame
 label_df['Runs']    = runs                  # In which run
-label_df['Chunks']  = (label_df.Runs-1)%2   # The chunks (needed for cross validation)
+label_df['Chunks']  = (label_df.Runs-1)//4  # The chunks (needed for cross validation)
 label_df['Labels']  = np.nan                # Labels
 
 # again a complex process to throw out regressors of no interest (like realignment)
@@ -282,7 +282,7 @@ regressors_of_interest  = [True if ('Magic' in n)
                            or ('Surprise' in n) 
                            else False for n in SPM_REGRESSORS]
 # throw out all rows of regressors of no interest
-label_df        = label_df.iloc[regressors_of_interest]
+label_df = label_df.iloc[regressors_of_interest]
 label_df = label_df[label_df.Runs.isin(runs_of_interest)]
 # Check for every entry in Regressors if it contains one of the label names. 
 # If so, assign the label name
@@ -424,9 +424,11 @@ except git.InvalidGitRepositoryError:
 # create a log file, that saves some information about the run script
 with open(os.path.join(RESULTS_DIR,'logfile.txt'), 'w+') as writer:
     writer.write('Codeversion: {} \n'.format(git_hash))
+    writer.write('Random seed: {} \n'.format(rng_seed))
     writer.write('Number of permutations: {}\n'.format(N_PERMS))
+    writer.write('Scaling: {}\n'.format(SCALE))
+    writer.write('Cutoff: {}\n'.format(str(CUTOFF)))
+    writer.write('Decoder used: {}\n'.format(DECODER))
+    writer.write('Smoothing kernel of data: {}\n'.format(str(SMOOTHING_SIZE)))
     writer.write('Number of kernels used: {}\n'.format(str(N_PROC)))
     writer.write('Time for computation: {}h'.format(str((time.time() - T_START)/3600)))
-
-# print time the whole processe took
-print ((time.time() - T_START)/3600)
