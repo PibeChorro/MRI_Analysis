@@ -126,7 +126,7 @@ T_START = time.time()
 parser = argparse.ArgumentParser()
 
 # add all the input arguments
-parser.add_argument("--data", "-d", nargs="?", const='pre', default='all', 
+parser.add_argument("--data", "-d", nargs="?", const='pre', default='pre', 
                     type=str)
 parser.add_argument("--over",  "-o",   nargs='?',  const='objects', 
                     default='objects')
@@ -257,9 +257,6 @@ result_dict = {
     'mean_accuracies': accuracy_mean_over_subs,
     'p_values': ps
     }
-
-result_df = pd.DataFrame(data=result_dict,
-                         columns=result_dict.keys())
     
 # FOURTH STEP
 # plot confidence intervalls for all ROIs and max statistic distribution in
@@ -312,12 +309,15 @@ max_stat_fig.savefig(os.path.join(RESULTS_DIR,'max_statistic_null_distribution.p
 
 # save the mean accuracies for the ROIs, the max statistic null distribution
 # and the p-values for decoding accuracies for the ROIs
-result_df['CI_lower'] = lows
-result_df['CI_higher'] = highs
-with h5py.File(os.path.join(RESULTS_DIR,'permutation-max-statistic.hdf5'), 'w') as f:
-    f.create_dataset('results', data=result_df)
-    f.create_dataset('max_null_distribution', data=max_statistic_null_distribution)
+result_dict['CI_lower'] = lows
+result_dict['CI_higher'] = highs
 
+result_df = pd.DataFrame(data=result_dict,columns=result_dict.keys())
+result_df.to_csv(path_or_buf=os.path.join(RESULTS_DIR,'max-statistic-results.csv'),
+                 index=False)
+with h5py.File(os.path.join(RESULTS_DIR,'permutation-max-statistic.hdf5'), 'w') as f:
+    f.create_dataset('max_null_distribution', data=max_statistic_null_distribution)
+    f.create_dataset('crit_acc_value', data=np.quantile(max_statistic_null_distribution,0.95))
 
 ##################
 # WRITE LOG FILE #
