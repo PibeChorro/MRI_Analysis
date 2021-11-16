@@ -238,6 +238,12 @@ for r, roi in enumerate(ROIS):
     plt.axvline(1/3)
     roi_fig.savefig(os.path.join(RESULTS_DIR,roi+'_sub_null_distributions.png'))
     
+# create a dataframe containing the accuracies of every subject for every roi
+accuracies_df = pd.DataFrame(list(map(np.ravel, roi_accuracies))).T
+# set the columns correct
+accuracies_df.columns = ROIS
+accuracies_df.to_csv(os.path.join(RESULTS_DIR, 'accuracies.csv'))
+    
 # THIRD STEP
 # after getting all mean null distributions get max-null statistic
 null_distribution_mean_over_subs    = np.asarray(null_distribution_mean_over_subs)
