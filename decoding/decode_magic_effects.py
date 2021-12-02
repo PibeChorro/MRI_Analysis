@@ -231,7 +231,7 @@ SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
 # wheret to store the results
 ANALYSIS        = 'ROI-analysis'
 RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
-                               'decode_effect_on_'+RUNS_TO_USE+'magic', 
+                               'decode_effect',''+RUNS_TO_USE+'_videos', 
                                'over_' + OVER, 'SpecialMoment', ANALYSIS, 
                                SUB)
 if not os.path.isdir(RESULTS_DIR):

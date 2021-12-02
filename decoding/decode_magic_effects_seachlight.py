@@ -211,7 +211,7 @@ SPM_MAT_DIR     = os.path.join(FLA_DIR, SUB, 'SPM.mat')
 # wheret to store the results
 ANALYSIS        = 'SearchLight'
 RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
-                               'decode_effect_on_'+RUNS_TO_USE+'magic', 
+                               'decode_effect',''+RUNS_TO_USE+'_videos',  
                                'over_' + OVER, data_analyzed , ANALYSIS, 
                                DECODER, SUB)
 OUTPUT_DIR = os.path.join(RESULTS_DIR, 'searchlight_results.nii')   # where to store the results

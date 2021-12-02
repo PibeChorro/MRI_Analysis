@@ -126,6 +126,8 @@ T_START = time.time()
 parser = argparse.ArgumentParser()
 
 # add all the input arguments
+parser.add_argument("--what", "-w", nargs="?",const='effect', default='effect', 
+                    type=str)
 parser.add_argument("--data", "-d", nargs="?", const='pre', default='pre', 
                     type=str)
 parser.add_argument("--over",  "-o",   nargs='?',  const='objects', 
@@ -133,6 +135,7 @@ parser.add_argument("--over",  "-o",   nargs='?',  const='objects',
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
 # assign values 
+WHAT = ARGS.what
 DATA = ARGS.data
 OVER = ARGS.over
 
@@ -145,25 +148,19 @@ DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
 
 RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 ANALYSIS        = 'ROI-analysis'
-if DATA == 'pre':
-    DATA_TO_USE = 'decode_effect_on_premagic'
+if WHAT == 'effect':
+    DATA_TO_USE = 'decode_effect'
     NUM_LABELS  = 3
-elif DATA == 'post':
-    DATA_TO_USE = 'decode_effect_on_postmagic'
-    NUM_LABELS  = 3
-elif DATA == 'all':
-    DATA_TO_USE = 'decode_effect_on_allmagic'
-    NUM_LABELS  = 3
-elif DATA == 'pre-post':
+elif WHAT == 'pre-post':
     DATA_TO_USE = 'decode_pre_vs_post'
     NUM_LABELS  = 2
-elif DATA == 'mag-nomag':
-    DATA_TO_USE = 'magic_vs_nomagic'
+elif WHAT == 'mag-nomag':
+    DATA_TO_USE = 'decode_magic_vs_nomagic'
     NUM_LABELS  = 2
 else:
     raise
 DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
-                               DATA_TO_USE, 'over_' + OVER, 'SpecialMoment',
+                               DATA_TO_USE, DATA+'_videos', 'SpecialMoment',
                                'ROI-analysis')
 RESULTS_DIR     = os.path.join(DATA_DIR,'group-statistics')
 if not os.path.isdir(RESULTS_DIR):
@@ -235,14 +232,15 @@ for r, roi in enumerate(ROIS):
              bins=30,
              color='red',
              alpha=0.2)
-    plt.axvline(1/3)
+    plt.axvline(1/NUM_LABELS)
     roi_fig.savefig(os.path.join(RESULTS_DIR,roi+'_sub_null_distributions.png'))
     
 # create a dataframe containing the accuracies of every subject for every roi
 accuracies_df = pd.DataFrame(list(map(np.ravel, roi_accuracies))).T
 # set the columns correct
 accuracies_df.columns = ROIS
-accuracies_df.to_csv(os.path.join(RESULTS_DIR, 'accuracies.csv'))
+accuracies_df.to_csv(os.path.join(RESULTS_DIR, 'accuracies.csv'),
+                     index=False)
     
 # THIRD STEP
 # after getting all mean null distributions get max-null statistic

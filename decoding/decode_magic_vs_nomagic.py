@@ -139,6 +139,8 @@ parser = argparse.ArgumentParser()
 # add all the input arguments
 parser.add_argument("--sub",        "-s",                               
                     default='sub-01')         # subject
+parser.add_argument("--over",       "-o",   nargs='?',  const='objects',    
+                    default='tricks')
 parser.add_argument("--smooth",             nargs='?',  const=0,        
                     default=0,      type=int)         # what data should be used
 parser.add_argument("--algorythm",  "-a",   nargs='?',  const='LDA',    
@@ -159,6 +161,7 @@ parser.add_argument("--perms",      "-p",   nargs="?",  const=1000,
 ARGS = parser.parse_args()
 # assign values 
 SUB             = ARGS.sub
+OVER            = ARGS.over
 N_PROC          = ARGS.kernels
 SMOOTHING_SIZE  = ARGS.smooth
 DECODER         = ARGS.algorythm
@@ -215,8 +218,8 @@ ROI_DIR         = os.path.join(FREESURFER_DIR,SUB,'corrected_ROIs')
 SPM_MAT_DIR     = os.path.join(FLA_DIR, 'SPM.mat')
 ANALYSIS        = 'ROI-analysis'
 RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic',
-                               'decoding_magic_vs_nomagic',RUNS_TO_USE+'_videos',
-                               'SpecialMoment', ANALYSIS, SUB)
+                               'decode_magic_vs_nomagic',RUNS_TO_USE+'_videos',
+                               'over_' + OVER, 'SpecialMoment', ANALYSIS, SUB)
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
 
@@ -228,7 +231,8 @@ ROIS = [
         'FEF', 'IPS',
         'ACC', 'PCC', 
         'IFG', 'aINSULA', 
-        'IFJ', 'PHT', 'PF'
+        'IFJ', 'PHT', 'PF',
+        '3rd-ventricle'
       ]
 
 # empty lists that will be filled with the results to plot after calculation
@@ -289,6 +293,43 @@ label_df = label_df[label_df.Runs.isin(runs_of_interest)]
 label_df.Labels = np.where(label_df.Regressors.str.contains('Magic'),'Magic',label_df.Labels)
 label_df.Labels = np.where(label_df.Regressors.str.contains('Control'),'NoMagic',label_df.Labels)
 label_df.Labels = np.where(label_df.Regressors.str.contains('Surprise'),'NoMagic',label_df.Labels)
+
+VideoNames  = [''.join(re.search(" (.+?)\*",string).group(1)) 
+            for string in label_df.Regressors]
+label_df['VideoNames'] = VideoNames
+
+# depending on whether we want to decode over objects or trick versions the 
+# chunks change
+if OVER == 'objects':
+    label_df['Chunks']  = (label_df.Runs-1)//4
+    chunks              = np.asarray(label_df.Chunks)
+    ps = PredefinedSplit(chunks)
+elif OVER == 'tricks':
+    # training on all tricks of verion 1 and test on all tricks of version 2 
+    # caused a shifted null distribution below chance, hence resulting in a 
+    # below chance max-statistic null distribution for multiple comparison. 
+    # To resolve the problem we train on tricks of version 1 in odd trials 
+    # and test on tricks of version 2 in even trials. 
+    # DISADVANTAGE: less data
+    # ADVANTAGE: four, instead of two validation folds (version 1/2 x odd/even)
+    
+    # stange and not beautiful solution (that I don't really understand) taken
+    # from here:
+    # (https://stackoverflow.com/questions/28837633/pandas-get-position-of-a-given-index-in-dataframe)
+    
+    label_df['Version'] = label_df.VideoNames.str.contains('1')
+    train1  = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==0) & (label_df.Version==0)].index))
+    test1   = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==1) & (label_df.Version==1)].index))
+    train2  = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==1) & (label_df.Version==0)].index))
+    test2   = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==0) & (label_df.Version==1)].index))
+    train3  = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==0) & (label_df.Version==1)].index))
+    test3   = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==1) & (label_df.Version==0)].index))
+    train4  = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==1) & (label_df.Version==1)].index))
+    test4   = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==0) & (label_df.Version==0)].index))
+    ps = [[train1, test1], [train2,test2],
+          [train3, test3], [train4,test4]]
+else:
+    raise
 
 # THIRD STEP
 # read in all beta from regressors of interest (flatten and then combine in on
@@ -361,7 +402,7 @@ for r, roi in tqdm(enumerate(ROIS)):
             X=ROI_data,
             y=targets,
             groups=runs_for_permutation,
-            cv=PredefinedSplit(chunks),
+            cv=ps,
             n_permutations=N_PERMS,
             random_state=rng_seed,
             n_jobs=N_PROC,
