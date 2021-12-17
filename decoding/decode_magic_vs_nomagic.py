@@ -140,7 +140,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--sub",        "-s",                               
                     default='sub-01')         # subject
 parser.add_argument("--over",       "-o",   nargs='?',  const='objects',    
-                    default='tricks')
+                    default='objects')
 parser.add_argument("--smooth",             nargs='?',  const=0,        
                     default=0,      type=int)         # what data should be used
 parser.add_argument("--algorythm",  "-a",   nargs='?',  const='LDA',    
@@ -231,9 +231,14 @@ ROIS = [
         'FEF', 'IPS',
         'ACC', 'PCC', 
         'IFG', 'aINSULA', 
-        'IFJ', 'PHT', 'PF',
-        '3rd-ventricle'
+        'IFJ', 'PHT', 'PF'
       ]
+
+EFFECT_NAMES = [
+    'Appear',
+    'Change',
+    'Vanish'
+]
 
 # empty lists that will be filled with the results to plot after calculation
 decode_accuracy = []
@@ -304,6 +309,21 @@ if OVER == 'objects':
     label_df['Chunks']  = (label_df.Runs-1)//4
     chunks              = np.asarray(label_df.Chunks)
     ps = PredefinedSplit(chunks)
+elif OVER == 'effects':
+    # decode over effects resulting in a 3 fold cross classification
+    # train on the videos of two effects and test on the remaining third
+    # in order to have the same number of datapoints in each label we add 
+    # surprise video 1 to effect 1, surprise 2 to effect 2 and surprise 3 to 
+    # effect 3
+    label_df['Effects']  = np.nan                # Labels
+    # Check for every entry in Regressors if it contains one of the label names. 
+    for e,effect in enumerate(EFFECT_NAMES):
+        label_df.Effects = np.where(label_df.Regressors.str.contains(effect),e,label_df.Effects)
+        label_df.Effects = np.where(label_df.Regressors.str.contains('Surprise'+str(e+1)),e,label_df.Effects)
+    
+    chunks = np.asarray(label_df.Effects)
+    ps = PredefinedSplit(chunks)
+
 elif OVER == 'tricks':
     # training on all tricks of verion 1 and test on all tricks of version 2 
     # caused a shifted null distribution below chance, hence resulting in a 
@@ -317,7 +337,7 @@ elif OVER == 'tricks':
     # from here:
     # (https://stackoverflow.com/questions/28837633/pandas-get-position-of-a-given-index-in-dataframe)
     
-    label_df['Version'] = label_df.VideoNames.str.contains('1')
+    label_df['Version'] = (label_df.VideoNames.str.contains('1')) 
     train1  = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==0) & (label_df.Version==0)].index))
     test1   = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==1) & (label_df.Version==1)].index))
     train2  = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==1) & (label_df.Version==0)].index))
@@ -366,7 +386,8 @@ for r, roi in tqdm(enumerate(ROIS)):
     # get data you want to use in the ROI analysis
     ROI_data = []
     ROI_data.append([beta[ROI & ~np.isnan(beta)] for beta in betas])
-    ROI_data = np.array(ROI_data [0])               # the list comprehension wraps the matrix in an additional, unnecessary array
+    # the list comprehension wraps the matrix in an additional, unnecessary array
+    ROI_data = np.array(ROI_data [0])               
     
     # apply scaling and cutoff according to command line input
     if SCALE == 'z':

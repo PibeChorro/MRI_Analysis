@@ -142,7 +142,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--sub",        "-s",                               
                     default='sub-01')         # subject
 parser.add_argument("--over",       "-o",   nargs='?',  const='objects',    
-                    default='tricks')
+                    default='objects')
 parser.add_argument("--smooth",             nargs='?',  const=0,        
                     default=0,      type=int) # what data should be used
 parser.add_argument("--algorythm",    "-a",   nargs='?',  const='LDA',    
