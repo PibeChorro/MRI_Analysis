@@ -160,8 +160,8 @@ elif WHAT == 'mag-nomag':
 else:
     raise
 DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
-                               DATA_TO_USE, DATA+'_videos', 'SpecialMoment',
-                               'ROI-analysis')
+                               DATA_TO_USE, DATA+'_videos','over_'+ OVER, 
+                               'SpecialMoment', 'ROI-analysis')
 RESULTS_DIR     = os.path.join(DATA_DIR,'group-statistics')
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
@@ -234,6 +234,41 @@ for r, roi in enumerate(ROIS):
              alpha=0.2)
     plt.axvline(1/NUM_LABELS)
     roi_fig.savefig(os.path.join(RESULTS_DIR,roi+'_sub_null_distributions.png'))
+    
+#----------------DO THE SAME FOR THE CONTROL VENTRICLE ROI -------------------#
+accuracies          = []
+null_distributions  = []
+
+# create a figure. Here we plot all null distributions to make sure they
+# are symetrical and centured around chance level
+roi_fig = plt.figure()
+roi = '3rd-ventricle'
+for s, sub in enumerate(SUBJECTS):
+    # read in the hdf5 data file for ROI[r] and SUBJECT[s]
+    roi_file = os.path.join(sub,roi + '.hdf5')
+    res = h5py.File(roi_file, 'r')
+    
+    # read out the accuracy and null distribution
+    accuracies.append(res['accuracy'][()])
+    null_distributions.append(res['null_distribution'][()])
+        
+    
+    # plot null distribution of subject for current ROI
+    plt.hist(res['null_distribution'][()],
+              bins=30,
+              color='blue',
+              alpha=1/len(SUBJECTS))
+
+mean_accuracy           = np.mean(accuracies)
+mean_null_distribution  = np.mean(null_distributions,axis = 0)
+
+# plot mean null distribution for ROI over subjects
+plt.hist(mean_null_distribution,
+         bins=30,
+         color='red',
+         alpha=0.2)
+plt.axvline(1/NUM_LABELS)
+roi_fig.savefig(os.path.join(RESULTS_DIR,roi+'_sub_null_distributions.png'))
     
 # create a dataframe containing the accuracies of every subject for every roi
 accuracies_df = pd.DataFrame(list(map(np.ravel, roi_accuracies))).T
