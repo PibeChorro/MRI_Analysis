@@ -297,6 +297,7 @@ elif OVER == 'tricks':
     test4   = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==0) & (label_df.Version==0)].index))
     ps = [[train1, test1], [train2,test2],
           [train3, test3], [train4,test4]]
+    chunks = np.asarray(label_df.Version)    # get chunks for cross validation as numpy array from data frame
 else:
     raise
 
@@ -322,7 +323,7 @@ MY_SEARCH_LIGHT = SearchLight(mask_img=MASK_DIR,
 betas = smooth_img(FLA_DIR+ '/' + SUB +'/'+label_df.BetaNames,fwhm=None)
 # fit the decoding object based on the previously loaded betas and labes
 # perform cross validation over objects
-MY_SEARCH_LIGHT.fit(imgs=betas,y=targets,groups=runs_for_permutation)
+MY_SEARCH_LIGHT.fit(imgs=betas,y=targets,groups=chunks)
 
 # Form results into a NIfTI 
 results = new_img_like(ref_niimg=MASK_DIR,data=MY_SEARCH_LIGHT.scores_)
@@ -342,7 +343,7 @@ for i in range(N_PERMS):
         permed_targets.extend(np.random.permutation(tmp))   # permute labels and add to list
     
     # searchlight decoding with permuted labels
-    MY_SEARCH_LIGHT.fit(imgs=betas,y=permed_targets,groups=runs_for_permutation)
+    MY_SEARCH_LIGHT.fit(imgs=betas,y=permed_targets,groups=chunks)
     results = new_img_like(ref_niimg=betas[0],data=MY_SEARCH_LIGHT.scores_)
     nib.save(results,perm_results_dir)
     
