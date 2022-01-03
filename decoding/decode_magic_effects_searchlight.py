@@ -211,7 +211,7 @@ SPM_MAT_DIR     = os.path.join(FLA_DIR, SUB, 'SPM.mat')
 # wheret to store the results
 ANALYSIS        = 'SearchLight'
 RESULTS_DIR     = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
-                               'decode_effect',''+RUNS_TO_USE+'_videos',  
+                               'decode_effect',RUNS_TO_USE+'_videos',  
                                'over_' + OVER, data_analyzed , ANALYSIS, 
                                DECODER, SUB)
 OUTPUT_DIR = os.path.join(RESULTS_DIR, 'searchlight_results.nii')   # where to store the results
@@ -270,9 +270,33 @@ label_df['VideoNames'] = VideoNames
 # depending on whether we want to decode over objects or trick versions the 
 # chunks change
 if OVER == 'objects':
-    label_df['Chunks']  = (label_df.Runs-1)//4  
+    label_df['Chunks']  = (label_df.Runs-1)//4
+    chunks              = np.asarray(label_df.Chunks)
+    ps = PredefinedSplit(chunks)
 elif OVER == 'tricks':
-    label_df['Chunks']  = label_df.VideoNames.str.contains('1')
+    # training on all tricks of verion 1 and test on all tricks of version 2 
+    # caused a shifted null distribution below chance, hence resulting in a 
+    # below chance max-statistic null distribution for multiple comparison. 
+    # To resolve the problem we train on tricks of version 1 in odd trials 
+    # and test on tricks of version 2 in even trials. 
+    # DISADVANTAGE: less data
+    # ADVANTAGE: four, instead of two validation folds (version 1/2 x odd/even)
+    
+    # stange and not beautiful solution (that I don't really understand) taken
+    # from here:
+    # (https://stackoverflow.com/questions/28837633/pandas-get-position-of-a-given-index-in-dataframe)
+    
+    label_df['Version'] = label_df.VideoNames.str.contains('1')
+    train1  = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==0) & (label_df.Version==0)].index))
+    test1   = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==1) & (label_df.Version==1)].index))
+    train2  = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==1) & (label_df.Version==0)].index))
+    test2   = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==0) & (label_df.Version==1)].index))
+    train3  = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==0) & (label_df.Version==1)].index))
+    test3   = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==1) & (label_df.Version==0)].index))
+    train4  = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==1) & (label_df.Version==1)].index))
+    test4   = label_df.index.get_indexer_for((label_df[(label_df.Runs%2==0) & (label_df.Version==0)].index))
+    ps = [[train1, test1], [train2,test2],
+          [train3, test3], [train4,test4]]
 else:
     raise
 
@@ -286,7 +310,6 @@ for l in LABEL_NAMES:
 # THE ACTUAL DECODING #
 #######################
 targets                 = np.asarray(label_df.Labels)   # get labels as numpy array from pandas dataframe
-chunks                  = np.asarray(label_df.Chunks)    # get chunks for cross validation as numpy array from data frame
 runs_for_permutation    = np.asarray(label_df.Runs)
 
 # initialize the searchlight decoding object
@@ -294,12 +317,12 @@ MY_SEARCH_LIGHT = SearchLight(mask_img=MASK_DIR,
                              radius=SEARCHLIG_RAD,
                              estimator=my_decoder,
                              n_jobs=N_PROC,
-                             cv=PredefinedSplit(chunks),
+                             cv=ps,
                              verbose=3)
 betas = smooth_img(FLA_DIR+ '/' + SUB +'/'+label_df.BetaNames,fwhm=None)
 # fit the decoding object based on the previously loaded betas and labes
 # perform cross validation over objects
-MY_SEARCH_LIGHT.fit(imgs=betas,y=targets,groups=chunks)
+MY_SEARCH_LIGHT.fit(imgs=betas,y=targets,groups=runs_for_permutation)
 
 # Form results into a NIfTI 
 results = new_img_like(ref_niimg=MASK_DIR,data=MY_SEARCH_LIGHT.scores_)
@@ -319,7 +342,7 @@ for i in range(N_PERMS):
         permed_targets.extend(np.random.permutation(tmp))   # permute labels and add to list
     
     # searchlight decoding with permuted labels
-    MY_SEARCH_LIGHT.fit(imgs=betas,y=permed_targets,groups=chunks)
+    MY_SEARCH_LIGHT.fit(imgs=betas,y=permed_targets,groups=runs_for_permutation)
     results = new_img_like(ref_niimg=betas[0],data=MY_SEARCH_LIGHT.scores_)
     nib.save(results,perm_results_dir)
     
