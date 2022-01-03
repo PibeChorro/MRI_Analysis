@@ -98,9 +98,11 @@ T_START = time.time()
 parser = argparse.ArgumentParser()
 
 # add all the input arguments
-parser.add_argument("--data",       "-d",   nargs="?",  const='pre',    
-                    default='pre',  type=str)
-parser.add_argument("--over",       "-o",   nargs='?',  const='objects',    
+parser.add_argument("--what", "-w", nargs="?",const='effect', default='effect', 
+                    type=str)
+parser.add_argument("--data", "-d", nargs="?", const='pre', default='pre', 
+                    type=str)
+parser.add_argument("--over",  "-o",   nargs='?',  const='objects', 
                     default='objects')
 parser.add_argument("--analyzed",           nargs='?', const='moment',  
                     default='moment',   type=str)
@@ -110,8 +112,9 @@ parser.add_argument("--bootstraps", "-b",   nargs="?",  const=1000,
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
 # assign values 
-DATA        = ARGS.data
-OVER        = ARGS.over
+WHAT = ARGS.what
+DATA = ARGS.data
+OVER = ARGS.over
 BOOTSTRAPPS = ARGS.bootstraps
 ANALYZED    = ARGS.analyzed
     
@@ -120,20 +123,14 @@ PROJ_DIR        = os.path.join(HOME, 'Documents/Magic_fMRI/DATA/MRI')
 DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
 
 RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
-if DATA == 'pre':
-    DATA_TO_USE = 'decode_effect_on_premagic'
+if WHAT == 'effect':
+    DATA_TO_USE = 'decode_effect'
     NUM_LABELS  = 3
-elif DATA == 'post':
-    DATA_TO_USE = 'decode_effect_on_postmagic'
-    NUM_LABELS  = 3
-elif DATA == 'all':
-    DATA_TO_USE = 'decode_effect_on_allmagic'
-    NUM_LABELS  = 3
-elif DATA == 'pre-post':
+elif WHAT == 'pre-post':
     DATA_TO_USE = 'decode_pre_vs_post'
     NUM_LABELS  = 2
-elif DATA == 'mag-nomag':
-    DATA_TO_USE = 'magic_vs_nomagic'
+elif WHAT == 'mag-nomag':
+    DATA_TO_USE = 'decode_magic_vs_nomagic'
     NUM_LABELS  = 2
 else:
     raise
@@ -145,6 +142,10 @@ elif ANALYZED == 'video':
 else:
     raise
     
+DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
+                               DATA_TO_USE, DATA+'_videos','over_'+ OVER, 
+                               data_analyzed, 'SearchLight','LDA')
+
 SMOOTHING_SIZE = 4
 
 GLM_DATA_DIR    = 'mnispace' 
@@ -158,9 +159,6 @@ MASK_IMG    = nib.load(MASK_DIR)
 MASK        = MASK_IMG.get_fdata()
 MASK        = np.array(MASK,dtype=bool)
     
-DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'decoding', 'decoding_magic', 
-                               DATA_TO_USE, 'over_' + OVER, data_analyzed,
-                               'SearchLight','LDA')
 RESULTS_DIR     = os.path.join(DATA_DIR, 'group-statistics')
 if not os.path.isdir(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
@@ -175,9 +173,9 @@ SUBJECTS = glob.glob(os.path.join(DATA_DIR,'sub-*'))
 SUBJECTS.sort()
 
 smooth = SUSAN()
-smooth.inputs.fwhm        = SMOOTHING_SIZE
-smooth.inputs.brightness_threshold = 0.1
-smooth.inputs.output_type = 'NIFTI'
+smooth.inputs.fwhm                  = SMOOTHING_SIZE
+smooth.inputs.brightness_threshold  = 0.1
+smooth.inputs.output_type           = 'NIFTI'
 
 # get the real mean decoding accuracy 
 mean_accuracy_map = []
