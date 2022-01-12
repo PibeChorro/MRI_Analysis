@@ -206,8 +206,6 @@ parser.add_argument("--over",  "-o",   nargs='?',  const='objects',
                     default='objects')
 parser.add_argument("--analyzed",           nargs='?', const='moment',  
                     default='moment',   type=str)
-parser.add_argument("--bootstraps", "-b",   nargs="?",  const=1000,     
-                    default=10000,   type=int)   # how many bootstrapping draws are done for the null statistic
 
 # parse the arguments to a parse-list(???)
 ARGS = parser.parse_args()
@@ -379,12 +377,16 @@ for c,clust in enumerate(cluster_indices):
             
             # calculate p-value and store it in the p-value map
             tmp_p_val = sum(normed_chance_dist[chance_accuracies>real_accuracy])
-            p_voxel_map[voxel[0],voxel[1],voxel[2]] = 1
+            p_voxel_map[voxel[0],voxel[1],voxel[2]] = tmp_p_val
 
 # save map consisting of critical values
-results = new_img_like(ref_niimg=
-                       mean_img,data=p_voxel_map)
+sig_voxel_map_corr = p_voxel_map<0.05
+
+results = new_img_like(ref_niimg=mean_img, data=p_voxel_map)
 nib.save(results,os.path.join(RESULTS_DIR, 'voxel_p-value_map.nii'))
+
+results = new_img_like(ref_niimg=mean_img, data=sig_voxel_map_corr)
+nib.save(results,os.path.join(RESULTS_DIR, 'significant_voxel_map.nii'))
 
 # from generated normalized null distribution create a histogram
 fig = plt.figure()
