@@ -318,17 +318,18 @@ for r,roi in enumerate(BENSON_ROIS):
                                               (DATA_DF.pre_post==cond)]
             means.append(effect_data.mean())
             sems.append(effect_data.sem())
+            
+            # plot the standart error of means of the effects as bars
+            ax.vlines(x=e,
+                  ymin=effect_data.mean()-effect_data.sem(),
+                  ymax=effect_data.mean()+effect_data.sem(),
+                  colors=COLORS[c],
+                  linewidth=5)
         
         # plot the mean value of the effects once with markers and once with
         # a dashed line
         ax.plot(means, color = COLORS[c], marker=MARKERSTYLE[c], label=cond)
-        ax.plot(means, color = COLORS[c], linestyle='--')
-        # plot the std of the effects as area
-        sems = np.array(sems)
-        upper = means+sems
-        lower = means-sems
-        ax.fill_between([0,1,2], upper, lower, 
-                        color= COLORS[c], alpha=.2)
+        
         
 # create a nice legend
 legend = plt.legend(title='Legend', 
@@ -376,17 +377,17 @@ for r,roi in enumerate(GLASSER_ROIS):
                                               (DATA_DF.pre_post==cond)]
             means.append(effect_data.mean())
             sems.append(effect_data.sem())
+            # plot the standart error of means of the effects as bars
+            ax.vlines(x=e,
+                  ymin=effect_data.mean()-effect_data.sem(),
+                  ymax=effect_data.mean()+effect_data.sem(),
+                  colors=COLORS[c],
+                  linewidth=5)
         
         # plot the mean value of the effects once with markers and once with
         # a dashed line
         ax.plot(means, color = COLORS[c], marker=MARKERSTYLE[c], label=cond)
-        ax.plot(means, color = COLORS[c], linestyle='--')
-        # plot the std of the effects as area
-        sems = np.array(sems)
-        upper = means+sems
-        lower = means-sems
-        ax.fill_between([0,1,2], upper, lower, 
-                        color= COLORS[c], alpha=.2)
+        
 # create a nice legend  
 legend = plt.legend(title='Legend', 
                     bbox_to_anchor=(1.5,0), 
@@ -433,17 +434,17 @@ for r,roi in enumerate(BRAIN_NETWORKS):
                                               (DATA_DF.pre_post==cond)]
             means.append(effect_data.mean())
             sems.append(effect_data.sem())
+            # plot the standart error of means of the effects as bars
+            ax.vlines(x=e,
+                  ymin=effect_data.mean()-effect_data.sem(),
+                  ymax=effect_data.mean()+effect_data.sem(),
+                  colors=COLORS[c],
+                  linewidth=5)
         
         # plot the mean value of the effects once with markers and once with
         # a dashed line
         ax.plot(means, color = COLORS[c], marker=MARKERSTYLE[c], label=cond)
-        ax.plot(means, color = COLORS[c], linestyle='--')
-        # plot the std of the effects as area
-        sems = np.array(sems)
-        upper = means+sems
-        lower = means-sems
-        ax.fill_between([0,1,2], upper, lower, 
-                        color= COLORS[c], alpha=.2)
+        
 # create a nice legend  
 legend = plt.legend(title='Legend', 
                     bbox_to_anchor=(1.5,0), 
