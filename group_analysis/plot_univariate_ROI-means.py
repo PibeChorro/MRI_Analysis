@@ -326,9 +326,9 @@ for r,roi in enumerate(BENSON_ROIS):
                   colors=COLORS[c],
                   linewidth=5)
         
-        # plot the mean value of the effects once with markers and once with
-        # a dashed line
-        ax.plot(means, color = COLORS[c], marker=MARKERSTYLE[c], label=cond)
+        # plot the mean value of the effects with markers 
+        ax.plot(means, color=COLORS[c], marker=MARKERSTYLE[c], markersize=15, 
+                linestyle=None, label=cond)
         
         
 # create a nice legend
@@ -384,9 +384,9 @@ for r,roi in enumerate(GLASSER_ROIS):
                   colors=COLORS[c],
                   linewidth=5)
         
-        # plot the mean value of the effects once with markers and once with
-        # a dashed line
-        ax.plot(means, color = COLORS[c], marker=MARKERSTYLE[c], label=cond)
+        # plot the mean value of the effects with markers 
+        ax.plot(means, color=COLORS[c], marker=MARKERSTYLE[c], markersize=15, 
+                linestyle=None, label=cond)
         
 # create a nice legend  
 legend = plt.legend(title='Legend', 
@@ -441,9 +441,9 @@ for r,roi in enumerate(BRAIN_NETWORKS):
                   colors=COLORS[c],
                   linewidth=5)
         
-        # plot the mean value of the effects once with markers and once with
-        # a dashed line
-        ax.plot(means, color = COLORS[c], marker=MARKERSTYLE[c], label=cond)
+        # plot the mean value of the effects with markers 
+        ax.plot(means, color=COLORS[c], marker=MARKERSTYLE[c], markersize=15, 
+                linestyle=None, label=cond)
         
 # create a nice legend  
 legend = plt.legend(title='Legend', 
