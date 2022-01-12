@@ -150,7 +150,7 @@ PROJ_DIR        = os.path.join(HOME, 'Documents/Magic_fMRI/DATA/MRI')
 RAWDATA_DIR     = os.path.join(PROJ_DIR, 'rawdata')
 DERIVATIVES_DIR = os.path.join(PROJ_DIR, 'derivatives')
 DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'univariate-ROI',
-                               data_analyzed)
+                               data_analyzed, 'MagicEffects')
 DATA_DF = pd.read_hdf(os.path.join(DATA_DIR,'prepared_dataframe.hdf5'),
                       key='df')
 ###############
