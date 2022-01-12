@@ -339,7 +339,8 @@ legend = plt.legend(title='Legend',
 # fontsize of legend's title is not affected by argument 'fontsize' in function
 # plt.legend. Therefore we change it here
 plt.setp(legend.get_title(),fontsize=30)
-fig.savefig(os.path.join(DATA_DIR,'BensonROIs_means.png'))
+fig.savefig(os.path.join(DATA_DIR,'BensonROIs_means.png'),
+            bbox_extra_artists=(legend,), bbox_inches='tight')
 
 # figure settings
 fig = plt.figure(figsize=(30,30))
@@ -396,7 +397,8 @@ legend = plt.legend(title='Legend',
 # fontsize of legend's title is not affected by argument 'fontsize' in function
 # plt.legend. Therefore we change it here
 plt.setp(legend.get_title(),fontsize=30)
-fig.savefig(os.path.join(DATA_DIR,'GlasserROIs_means.png'))
+fig.savefig(os.path.join(DATA_DIR,'GlasserROIs_means.png'),
+            bbox_extra_artists=(legend,),bbox_inches='tight')
 
 # figure settings
 fig = plt.figure(figsize=(33,30))
@@ -453,7 +455,8 @@ legend = plt.legend(title='Legend',
 # fontsize of legend's title is not affected by argument 'fontsize' in function
 # plt.legend. Therefore we change it here
 plt.setp(legend.get_title(),fontsize=30)
-fig.savefig(os.path.join(DATA_DIR,'Networks_means.png'))
+fig.savefig(os.path.join(DATA_DIR,'Networks_means.png'),
+            bbox_extra_artists=(legend,), bbox_inches='tight')
 
 
 ##################
