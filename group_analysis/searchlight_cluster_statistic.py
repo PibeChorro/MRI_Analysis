@@ -393,6 +393,10 @@ fig = plt.figure()
 plt.hist(norm_cluster_hist,bins=50)
 fig.savefig(os.path.join(RESULTS_DIR,'clustersize_null_distribution.png'))
 
+#--------------------REMOVE ALL BOOTSTRAPPED NIFTI IMAGES--------------------#
+for file in BOOTSTRAPPS:
+    os.remove(file)
+
 ##################
 # WRITE LOG FILE #
 ##################
