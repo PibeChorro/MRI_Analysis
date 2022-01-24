@@ -60,11 +60,9 @@ import git
 # data structuration and calculations
 import pandas as pd  # to create data frames
 import numpy as np   # most important numerical calculations
-from scipy import stats
 from statsmodels.stats.anova import AnovaRM
 import pingouin as pg
 import matplotlib.pyplot as plt
-import seaborn as sns
 # optimize time performance
 import time
 
@@ -106,17 +104,6 @@ DATA_DIR        = os.path.join(DERIVATIVES_DIR, 'univariate-ROI',
 
 data_frame = pd.read_csv(filepath_or_buffer=os.path.join(DATA_DIR,'ratings_df.csv'))
 
-# define ROIs
-ROIS = [
-        'V1', 'V2', 'V3', 'hV4', 
-        'V3A', 'V3B', 
-        'LO', 'VO', 
-        'FEF', 'IPS',
-        'ACC', 'PCC', 
-        'IFG', 'aINSULA', 
-        'IFJ', 'PHT', 'PF'
-      ]
-
 VIDEO_TYPE = [
     'Magic',
     'Control',
@@ -135,41 +122,45 @@ EFFECTS = [
 # correlation between behavioral surprise ratings and beta images
 
 # first remove missing values and average over conditions
-na_removed = pg.remove_rm_na(data=data_frame,
-                             dv='Ratings', 
-                             subject='ids',
-                             within=['PrePost', 'Type'],
-                             aggregate='mean')
+# since pingouin 0.5.0 -> (not remove_rm_na anymore)
+na_removed = data_frame.pivot_table(index='ids', 
+                                    columns=['PrePost', 'Type'],
+                                    values='Ratings',
+                                    aggfunc='mean',
+                                    dropna=True,
+                                    fill_value=None)
+avg_data = na_removed.melt(ignore_index=False, value_name='Ratings').reset_index()
 
 # repeated measures ANOVA of pre-post x Video type
 
-spher = pg.sphericity(data=na_removed,
+prepost_type_spher = pg.sphericity(data=avg_data,
                       dv='Ratings', 
                       subject='ids',
                       within=['PrePost', 'Type'])
-pre_post_norm = pg.normality(data=na_removed,
+pre_post_norm = pg.normality(data=avg_data,
                       dv='Ratings',
                       group= 'PrePost')
 
-type_norm = pg.normality(data=na_removed,
+type_norm = pg.normality(data=avg_data,
                       dv='Ratings',
                       group= 'Type')
 
 if all(pre_post_norm.normal.values) and all(type_norm.normal.values):
     
     # print if sphericity is given for the data
-    print('Spericity for rating data is given: {}\n'.format(spher.spher))
-    aov_res = pg.rm_anova(data=na_removed,
+    print('Spericity for rating data is given: {}\n'.format(prepost_type_spher.spher))
+    aov_res = pg.rm_anova(data=avg_data,
                           dv='Ratings', 
                           subject='ids',
                           within=['PrePost', 'Type'],
-                          correction = not spher.spher,
+                          correction = not prepost_type_spher.spher,
                           detailed=True)
     
-    aov_res.to_csv(path_or_buf=os.path.join(DATA_DIR,'aov_PrePost_Type_results.csv'))
+    aov_res.to_csv(path_or_buf=os.path.join(DATA_DIR,'aov_PrePost_Type_results.csv'),
+                   index=False, float_format='%.3f')
     
     # report results of anov
-    if spher.spher:
+    if prepost_type_spher.spher:
         p_to_report = aov_res['p-unc']
     else:
         p_to_report = aov_res['p-GG-corr']
@@ -182,10 +173,10 @@ if all(pre_post_norm.normal.values) and all(type_norm.normal.values):
     
     fig = plt.figure()
     for vid_type in VIDEO_TYPE:
-        rating_pre = na_removed.loc[:,'Ratings'][(na_removed.Type==vid_type)&
-                                                 (na_removed.PrePost==0)]
-        rating_post = na_removed.loc[:,'Ratings'][(na_removed.Type==vid_type)&
-                                                  (na_removed.PrePost==1)]
+        rating_pre = avg_data.loc[:,'Ratings'][(avg_data.Type==vid_type)&
+                                                 (avg_data.PrePost==0)]
+        rating_post = avg_data.loc[:,'Ratings'][(avg_data.Type==vid_type)&
+                                                  (avg_data.PrePost==1)]
         pre_post_means  = [rating_pre.mean(),rating_post.mean()]
         pre_post_means  = np.array(pre_post_means)
         pre_post_sems   = [rating_pre.sem(),rating_post.sem()]
@@ -199,23 +190,25 @@ if all(pre_post_norm.normal.values) and all(type_norm.normal.values):
     if p_to_report[2]<0.05:
         # pairwise t-tests
         
-        post_hoc_res_PrePost = pg.pairwise_ttests(data=na_removed, 
+        post_hoc_res_PrePost = pg.pairwise_ttests(data=avg_data, 
                                                   dv='Ratings', 
                                                   within= ['PrePost','Type'],
                                                   subject='ids',
                                                   alternative='two-sided',
-                                                  padjust='fdr_bh')
+                                                  effsize='cohen',
+                                                  padjust='bonf')
         
-        post_hoc_res_Type = pg.pairwise_ttests(data=na_removed, 
+        post_hoc_res_Type = pg.pairwise_ttests(data=avg_data, 
                                                dv='Ratings', 
                                                within= ['Type','PrePost'],
                                                subject='ids',
                                                alternative='two-sided',
-                                               padjust='fdr_bh')
+                                               effsize='cohen',
+                                               padjust='bonf')
         
         post_hoc_res = pd.concat ([post_hoc_res_PrePost, post_hoc_res_Type])
         post_hoc_res.to_csv(path_or_buf=os.path.join(DATA_DIR,'post_hoc_PrePost_Type_results.csv'),
-                            index=False)
+                            index=False, float_format='%.3f')
         
 else:
     # do non-parametric statistics
@@ -223,24 +216,24 @@ else:
     # pre and post each
     # and a wilkoxon test for pre post and for every video type pre and post
     # wilcoxon test for pre post pooled
-    pre_data = na_removed[na_removed.PrePost==0].Ratings
-    post_data = na_removed[na_removed.PrePost==1].Ratings
+    pre_data = avg_data[avg_data.PrePost==0].Ratings
+    post_data = avg_data[avg_data.PrePost==1].Ratings
     
     pre_post_pooled_wilcox = pg.wilcoxon(x=pre_data,
                                          y=post_data,
                                          alternative='greater')
     pre_post_pooled_wilcox.to_csv(os.path.join(DATA_DIR,'pre_post_wilcoxon.csv'),
-                                  index=False)
+                                  index=False, float_format='%.3f')
     
     x_var   = []
     y_var   = []
     data    = []
     
     # wilcoxon test for pre post Magic
-    pre_data_magic = na_removed[(na_removed.PrePost==0) & 
-                                (na_removed.Type=='Magic')].Ratings
-    post_data_magic = na_removed[(na_removed.PrePost==1) & 
-                                 (na_removed.Type=='Magic')].Ratings
+    pre_data_magic = avg_data[(avg_data.PrePost==0) & 
+                                (avg_data.Type=='Magic')].Ratings
+    post_data_magic = avg_data[(avg_data.PrePost==1) & 
+                                 (avg_data.Type=='Magic')].Ratings
     
     pre_post_magic_wilcox = pg.wilcoxon(x=pre_data_magic,
                                         y=post_data_magic,
@@ -250,10 +243,10 @@ else:
     data.append('Magic')
     
     # wilcoxon test for pre post Surprise
-    pre_data_surprise = na_removed[(na_removed.PrePost==0) & 
-                                   (na_removed.Type=='Surprise')].Ratings
-    post_data_surprise = na_removed[(na_removed.PrePost==1) & 
-                                    (na_removed.Type=='Surprise')].Ratings
+    pre_data_surprise = avg_data[(avg_data.PrePost==0) & 
+                                   (avg_data.Type=='Surprise')].Ratings
+    post_data_surprise = avg_data[(avg_data.PrePost==1) & 
+                                    (avg_data.Type=='Surprise')].Ratings
     
     pre_post_surprise_wilcox = pg.wilcoxon(x=pre_data_surprise,
                                            y=post_data_surprise,
@@ -263,10 +256,10 @@ else:
     data.append('Surprise')
     
     # wilcoxon test for pre post Control
-    pre_data_control = na_removed[(na_removed.PrePost==0) & 
-                                  (na_removed.Type=='Control')].Ratings
-    post_data_control = na_removed[(na_removed.PrePost==1) & 
-                                   (na_removed.Type=='Control')].Ratings
+    pre_data_control = avg_data[(avg_data.PrePost==0) & 
+                                  (avg_data.Type=='Control')].Ratings
+    post_data_control = avg_data[(avg_data.PrePost==1) & 
+                                   (avg_data.Type=='Control')].Ratings
     
     pre_post_control_wilcox = pg.wilcoxon(x=pre_data_control,
                                           y=post_data_control,
@@ -276,19 +269,16 @@ else:
     data.append('Control')
     
     # friedman for video types all data:
-    friedman_type_pooled = pg.friedman(data=na_removed,
+    friedman_type_pooled = pg.friedman(data=avg_data,
                                        dv='Ratings', 
                                        subject='ids',
                                        within='Type')
-    # save data in csv-file
-    friedman_type_pooled.to_csv(path_or_buf=os.path.join(DATA_DIR,
-                                                         'friedman_type_pooled.csv'),
-                                index=False)
+
     if friedman_type_pooled['p-unc'].values[0]<0.05:
         # do post hoc wilcoxon tests
-        pooled_data_magic = na_removed[na_removed.Type=='Magic'].Ratings
-        pooled_data_surprise = na_removed[na_removed.Type=='Surprise'].Ratings
-        pooled_data_control = na_removed[na_removed.Type=='Control'].Ratings
+        pooled_data_magic = avg_data[avg_data.Type=='Magic'].Ratings
+        pooled_data_surprise = avg_data[avg_data.Type=='Surprise'].Ratings
+        pooled_data_control = avg_data[avg_data.Type=='Control'].Ratings
         
         magic_surprise_pooled_wilcox = pg.wilcoxon(x=pooled_data_magic,
                                                    y=pooled_data_surprise,
@@ -310,15 +300,12 @@ else:
         data.append('pooled')
     
     # friedman for video types pre revelation:
-    pre_data = na_removed[na_removed.PrePost==0]
+    pre_data = avg_data[avg_data.PrePost==0]
     friedman_type_pre = pg.friedman(data=pre_data,
                                        dv='Ratings', 
                                        subject='ids',
                                        within='Type')
-    # save data in csv-file
-    friedman_type_pre.to_csv(path_or_buf=os.path.join(DATA_DIR,
-                                                      'friedman_type_pre.csv'),
-                                index=False)
+    
     if friedman_type_pre['p-unc'].values[0]<0.05:
         # do post hoc wilcoxon tests
         magic_surprise_pre_wilcox = pg.wilcoxon(x=pre_data_magic,
@@ -341,15 +328,12 @@ else:
         data.append('pre')
     
     # friedman for video types pre revelation:
-    post_data = na_removed[na_removed.PrePost==1]
+    post_data = avg_data[avg_data.PrePost==1]
     friedman_type_post = pg.friedman(data=post_data,
                                           dv='Ratings', 
                                           subject='ids',
                                           within='Type')
-    # save data in csv-file
-    friedman_type_post.to_csv(path_or_buf=os.path.join(DATA_DIR,
-                                                       'friedman_type_post.csv'),
-                                index=False)
+
     if friedman_type_post['p-unc'].values[0]<0.05:
         # do post hoc wilcoxon tests
         magic_surprise_post_wilcox = pg.wilcoxon(x=post_data_magic,
@@ -384,43 +368,58 @@ else:
                              magic_surprise_post_wilcox,    # type post
                              magic_control_post_wilcox, 
                              surprise_control_post_wilcox])
+    
     post_hoc_df['X']=x_var
     post_hoc_df['Y']=y_var
     post_hoc_df['data']=data
     post_hoc_df['p-corrected']=post_hoc_df['p-val']*len(post_hoc_df)
     
     post_hoc_df.to_csv(os.path.join(DATA_DIR,'prepost_type_posthoc_wilcoxon.csv'),
-                       index=False)
+                       index=False, float_format='%.3f')
+    
+    friedman_type_tests = pd.concat([friedman_type_pooled, 
+                                     friedman_type_pre, 
+                                     friedman_type_post])
+    friedman_type_tests['p-corrected'] = friedman_type_tests['p-unc']*len(friedman_type_tests)
+    friedman_type_tests['data'] = ['pooled', 'pre', 'post']
+    
+    friedman_type_tests.to_csv(os.path.join(DATA_DIR,'friedman_type.csv'),
+                       index=False, float_format='%.3f')
     
 magic_df = data_frame[data_frame.Type=='Magic']
-na_removed = pg.remove_rm_na(data=magic_df,
-                             dv='Ratings', 
-                             subject='ids',
-                             within=['Objects', 'Effect'],
-                             aggregate='mean')
+na_removed = magic_df.pivot_table(index='ids', 
+                                    columns=['Objects', 'Effect'],
+                                    values='Ratings',
+                                    aggfunc='mean',
+                                    dropna=True,
+                                    fill_value=None)
+avg_data = na_removed.melt(ignore_index=False, value_name='Ratings').reset_index()
 
-effect_norm = pg.normality(data=na_removed,
+effect_norm = pg.normality(data=avg_data,
                            dv='Ratings',
                            group= 'Effect')
 
-object_norm = pg.normality(data=na_removed,
+object_norm = pg.normality(data=avg_data,
                            dv='Ratings',
                            group= 'Objects')
 
 if all(effect_norm.normal.values) and all(object_norm.normal.values):
     # repeated measures ANOVA for effects x objects (only magic videos)
 
-    rm_aov = AnovaRM(data=na_removed, 
+    rm_aov = AnovaRM(data=avg_data, 
                      depvar='Ratings', 
                      subject='ids',
                      within=['Objects', 'Effect'])
     res = rm_aov.fit()
+    res.anova_table.to_csv(os.path.join(DATA_DIR,'effect_object_rmANOVA.csv'),
+                       index=False, float_format='%.3f')
     # report results of anov
+    p_to_report = res.anova_table['Pr > F']
     
-    if spher.spher:
-        p_to_report = res.anova_table['Pr > F']
-    else:
-        p_to_report = aov_res['p-GG-corr']
+    # if spher.spher:
+    #     p_to_report = res.anova_table['Pr > F']
+    # else:
+    #     p_to_report = aov_res['p-GG-corr']
     print('{} main effect: F = {} (p={})\n'.format(res.anova_table.index[0], 
                                                    res.anova_table['F Value'][0],
                                                    p_to_report[0]))
@@ -439,29 +438,37 @@ if all(effect_norm.normal.values) and all(object_norm.normal.values):
         post_hoc_res_Obj = pg.pairwise_ttests(data=magic_df,
                                               dv='Ratings',
                                               within=['Objects', 'Effect'],
-                                              subject='ids')
+                                              subject='ids',
+                                              effsize='cohen',
+                                              padjust='bonf')
         post_hoc_res_Eff = pg.pairwise_ttests(data=magic_df,
                                               dv='Ratings',
                                               within=['Effect', 'Objects'],
-                                              subject='ids')
+                                              subject='ids',
+                                              effsize='cohen',
+                                              padjust='bonf')
         post_hoc_res = pd.concat ([post_hoc_res_Obj, post_hoc_res_Eff])
         post_hoc_res.to_csv(path_or_buf=os.path.join(DATA_DIR,'post_hoc_Obj_Eff_results.csv'),
-                            index=False)
+                            index=False, float_format='%.3f')
         
     elif res.anova_table['Pr > F'][1]<0.05:
         post_hoc_res_Eff = pg.pairwise_ttests(data=magic_df,
                                               dv='Ratings',
                                               within=['Effect'],
-                                              subject='ids')
+                                              subject='ids',
+                                              effsize='cohen',
+                                              padjust='bonf')
         post_hoc_res_Eff.to_csv(path_or_buf=os.path.join(DATA_DIR,'post_hoc_Eff_results.csv'),
-                            index=False)
+                            index=False, float_format='%.3f')
     elif res.anova_table['Pr > F'][0]<0.05:
         post_hoc_res_Obj = pg.pairwise_ttests(data=magic_df,
                                               dv='Ratings',
                                               within=['Objects'],
-                                              subject='ids')
+                                              subject='ids',
+                                              effsize='cohen',
+                                              padjust='bonf')
         post_hoc_res_Obj.to_csv(path_or_buf=os.path.join(DATA_DIR,'post_hoc_Obj_results.csv'),
-                            index=False)
+                            index=False, float_format='%.3f')
         
 else:
     # do non-parametric statistics
@@ -471,7 +478,7 @@ fig = plt.figure()
 eff_values  = []
 eff_sems    = []
 for eff in EFFECTS:
-    eff_ratings = na_removed.loc[:,'Ratings'][(na_removed.Effect==eff)]
+    eff_ratings = avg_data.loc[:,'Ratings'][(avg_data.Effect==eff)]
     eff_values.append(eff_ratings.mean())
     eff_sems.append(eff_ratings.sem())
     
@@ -486,52 +493,61 @@ plt.fill_between([0,1,2], upper, lower, alpha=0.2)
 # vanish we compare appear against surprise
 # first remove missing values and average over conditions
 effect_df = data_frame[data_frame.Type=='Magic']
-effect_na_removed = pg.remove_rm_na(data=effect_df,
-                                    dv='Ratings', 
-                                    subject='ids',
-                                    within='Effect',
-                                    aggregate='mean')
+eff_na_removed = effect_df.pivot_table(index='ids', 
+                                    columns='Effect',
+                                    values='Ratings',
+                                    aggfunc='mean',
+                                    dropna=True,
+                                    fill_value=None)
+eff_avg_data = eff_na_removed.melt(ignore_index=False, value_name='Ratings').reset_index()
 
-type_na_removed = pg.remove_rm_na(data=data_frame,
-                                  dv='Ratings', 
-                                  subject='ids',
-                                  within='Type',
-                                  aggregate='mean')
+type_na_removed = data_frame.pivot_table(index='ids', 
+                                    columns='Type',
+                                    values='Ratings',
+                                    aggfunc='mean',
+                                    dropna=True,
+                                    fill_value=None)
+type_avg_data = type_na_removed.melt(ignore_index=False, value_name='Ratings').reset_index()
 
-xvar = effect_na_removed.Ratings[effect_na_removed.Effect=='Appear']
-yvar = type_na_removed.Ratings[type_na_removed.Type=='Surprise']
+xvar = eff_avg_data.Ratings[eff_avg_data.Effect=='Appear']
+yvar = type_avg_data.Ratings[type_avg_data.Type=='Surprise']
 
 ttest_res_all = pg.ttest(x=xvar, y=yvar,paired=True,alternative='greater')
 
-effect_na_removed = pg.remove_rm_na(data=effect_df,
-                                    dv='Ratings', 
-                                    subject='ids',
-                                    within=['Effect','PrePost'],
-                                    aggregate='mean')
+eff_na_removed = effect_df.pivot_table(index='ids', 
+                                    columns=['Effect','PrePost'],
+                                    values='Ratings',
+                                    aggfunc='mean',
+                                    dropna=True,
+                                    fill_value=None)
+eff_avg_data = eff_na_removed.melt(ignore_index=False, value_name='Ratings').reset_index()
 
-type_na_removed = pg.remove_rm_na(data=data_frame,
-                                  dv='Ratings', 
-                                  subject='ids',
-                                  within=['Type','PrePost'],
-                                  aggregate='mean')
+type_na_removed = data_frame.pivot_table(index='ids', 
+                                    columns=['Type','PrePost'],
+                                    values='Ratings',
+                                    aggfunc='mean',
+                                    dropna=True,
+                                    fill_value=None)
+type_avg_data = type_na_removed.melt(ignore_index=False, value_name='Ratings').reset_index()
 
-xvar = effect_na_removed.Ratings[(effect_na_removed.Effect=='Appear') & 
-                                 (effect_na_removed.PrePost==0)]
-yvar = type_na_removed.Ratings[(type_na_removed.Type=='Surprise') &
-                               (type_na_removed.PrePost==0)]
+xvar = eff_avg_data.Ratings[(eff_avg_data.Effect=='Appear') & 
+                                 (eff_avg_data.PrePost==0)]
+yvar = type_avg_data.Ratings[(type_avg_data.Type=='Surprise') &
+                               (type_avg_data.PrePost==0)]
 ttest_res_pre = pg.ttest(x=xvar, y=yvar,paired=True,alternative='greater')
 
-xvar = effect_na_removed.Ratings[(effect_na_removed.Effect=='Appear') & 
-                                 (effect_na_removed.PrePost==1)]
-yvar = type_na_removed.Ratings[(type_na_removed.Type=='Surprise') &
-                               (type_na_removed.PrePost==1)]
+xvar = eff_avg_data.Ratings[(eff_avg_data.Effect=='Appear') & 
+                                 (eff_avg_data.PrePost==1)]
+yvar = type_avg_data.Ratings[(type_avg_data.Type=='Surprise') &
+                               (type_avg_data.PrePost==1)]
 ttest_res_post = pg.ttest(x=xvar, y=yvar,paired=True,alternative='greater')
 
 appear_ttest_res = pd.concat ([ttest_res_all, ttest_res_pre, ttest_res_post])
 appear_ttest_res['PrePost'] = ['all', 'pre', 'post']
 
 appear_ttest_res.to_csv(path_or_buf=os.path.join(DATA_DIR,
-                                                 'appear_surprise_ttest_res.csv'))
+                                                 'appear_surprise_ttest_res.csv'),
+                        index=False, float_format='%.3f')
 
 ##################
 # WRITE LOG FILE #
