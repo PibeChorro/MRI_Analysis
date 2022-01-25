@@ -69,7 +69,7 @@ if not os.path.isdir(RESULTS_DIR):
 SUBJECS = glob.glob(os.path.join(DATA_DIR, 'sub*'))
 SUBJECS.sort()
 # ANALYSIS
-MAGIC_MOMENT_MAT = os.path.join(HOME,'Documents/Master_Thesis/MRI_Analysis/glm/info_MagicMoment.mat')
+MAGIC_MOMENT_MAT = os.path.join(HOME,'Documents/Magic_fMRI/MRI_Analysis/glm/info_MagicMoment.mat')
 
 info_magic_moment = readmat.load(MAGIC_MOMENT_MAT,isStruct=True)['do']
 videos = [v for v in info_magic_moment['ListOfVideos'] if 'Magic' in v and 'excluded' not in v]
@@ -158,9 +158,10 @@ for vid in videos:
                             fisher_matrices[f].iloc[6,7]]) 
                    for f in range(len(fisher_matrices))]
     
+    
     ttest_res = pg.ttest(pre_fisher,post_fisher,paired=True)
     
-    print ('{}: p={}'.format(vid,ttest_res['p-val'].values[0]))
+    print ('{}:t={} (p={})'.format(vid,ttest_res['T'].values[0],ttest_res['p-val'].values[0]))
     ps.append(ttest_res['p-val'].values[0])
         
 ##################
