@@ -68,6 +68,14 @@ BLINK_SAC_DF.num_blinks[BLINK_SAC_DF.video_type=='Control'] /= 6
 BLINK_SAC_DF.num_blinks[BLINK_SAC_DF.video_type=='Surprise'] /= 6
 
 # first remove missing values and average over conditions
+na_removed = BLINK_SAC_DF.pivot_table(index='subjects',
+                                      columns=['pre_post', 'video_type'],
+                                      aggfunc='mean',
+                                      dropna=True,
+                                      fill_value=None)
+
+aggregated_df = na_removed.melt(ignore_index=False, value_name='Ratings').reset_index()
+
 aggregated_df = pg.remove_rm_na(data=BLINK_SAC_DF,
                                 subject='subject',
                                 within=['pre_post', 'video_type'],
@@ -87,25 +95,41 @@ aov_res = pg.rm_anova(data=aggregated_df,
                       within=['pre_post', 'video_type'],
                       correction = not spher.spher,
                       detailed=True)
+aov_res.to_csv(os.path.join(DATA_DIR, 'sacc_rmAOV_res.csv'))
 
-if aov_res['p-unc'][0]<0.05:
+if aov_res['p-GG-corr'][0]<0.05:
     x_var = aggregated_df.num_saccades[(aggregated_df.video_type=='Magic')&
                                        (aggregated_df.pre_post=='pre')]
     y_var = aggregated_df.num_saccades[(aggregated_df.video_type=='Magic')&
                                        (aggregated_df.pre_post=='post')]
-    ttest_res_mag = pg.ttest(x=x_var, y=y_var, paired=True)
-    
+    x_normal = pg.normality(data=x_var)
+    y_normal = pg.normality(data=y_var)
+    if x_normal.normal.values and y_normal.normal.values:
+        ttest_res_mag = pg.ttest(x=x_var, y=y_var, paired=True)
+    else:
+        ttest_res_mag = pg.wilcoxon(x=x_var, y=y_var)
+        
     x_var = aggregated_df.num_saccades[(aggregated_df.video_type=='Control')&
                                        (aggregated_df.pre_post=='pre')]
     y_var = aggregated_df.num_saccades[(aggregated_df.video_type=='Control')&
                                        (aggregated_df.pre_post=='post')]
-    ttest_res_con = pg.ttest(x=x_var, y=y_var, paired=True)
+    x_normal = pg.normality(data=x_var)
+    y_normal = pg.normality(data=y_var)
+    if x_normal.normal.values and y_normal.normal.values:
+        ttest_res_con = pg.ttest(x=x_var, y=y_var, paired=True)
+    else:
+        ttest_res_con = pg.wilcoxon(x=x_var, y=y_var)
     
     x_var = aggregated_df.num_saccades[(aggregated_df.video_type=='Surprise')&
                                        (aggregated_df.pre_post=='pre')]
     y_var = aggregated_df.num_saccades[(aggregated_df.video_type=='Surprise')&
                                        (aggregated_df.pre_post=='post')]
-    ttest_res_sur = pg.ttest(x=x_var, y=y_var, paired=True)
+    x_normal = pg.normality(data=x_var)
+    y_normal = pg.normality(data=y_var)
+    if x_normal.normal.values and y_normal.normal.values:
+        ttest_res_sur = pg.ttest(x=x_var, y=y_var, paired=True)
+    else:
+        ttest_res_sur = pg.wilcoxon(x=x_var, y=y_var)
     
     post_hoc_prepost_sacc_res=pd.concat([ttest_res_mag,ttest_res_con,ttest_res_sur])
     post_hoc_prepost_sacc_res['VideoType'] = ['Magic', 'Control', 'Surprise']
@@ -116,6 +140,9 @@ spher = pg.sphericity(data=aggregated_df,
                       dv='num_blinks', 
                       subject='subject',
                       within=['pre_post', 'video_type'])
+norm = pg.normality(data=aggregated_df,
+                      dv='num_blinks', 
+                      group='pre_post')
 
 aov_res = pg.rm_anova(data=aggregated_df,
                       dv='num_blinks', 
@@ -123,29 +150,48 @@ aov_res = pg.rm_anova(data=aggregated_df,
                       within=['pre_post', 'video_type'],
                       correction = not spher.spher,
                       detailed=True)
+aov_res.to_csv(os.path.join(DATA_DIR, 'blink_rmAOV_res.csv'))
 
-if aov_res['p-unc'][0]<0.05:
+if aov_res['p-GG-corr'][0]<0.05:
     x_var = aggregated_df.num_blinks[(aggregated_df.video_type=='Magic')&
                                        (aggregated_df.pre_post=='pre')]
     y_var = aggregated_df.num_blinks[(aggregated_df.video_type=='Magic')&
                                        (aggregated_df.pre_post=='post')]
-    ttest_res_mag = pg.ttest(x=x_var, y=y_var, paired=True)
+    
+    x_normal = pg.normality(data=x_var)
+    y_normal = pg.normality(data=y_var)
+    if x_normal.normal.values and y_normal.normal.values:
+        ttest_res_mag = pg.ttest(x=x_var, y=y_var, paired=True)
+    else:
+        ttest_res_mag = pg.wilcoxon(x=x_var, y=y_var)
     
     x_var = aggregated_df.num_blinks[(aggregated_df.video_type=='Control')&
                                        (aggregated_df.pre_post=='pre')]
     y_var = aggregated_df.num_blinks[(aggregated_df.video_type=='Control')&
                                        (aggregated_df.pre_post=='post')]
-    ttest_res_con = pg.ttest(x=x_var, y=y_var, paired=True)
+    
+    x_normal = pg.normality(data=x_var)
+    y_normal = pg.normality(data=y_var)
+    if x_normal.normal.values and y_normal.normal.values:
+        ttest_res_con = pg.ttest(x=x_var, y=y_var, paired=True)
+    else:
+        ttest_res_con = pg.wilcoxon(x=x_var, y=y_var)
     
     x_var = aggregated_df.num_blinks[(aggregated_df.video_type=='Surprise')&
                                        (aggregated_df.pre_post=='pre')]
     y_var = aggregated_df.num_blinks[(aggregated_df.video_type=='Surprise')&
                                        (aggregated_df.pre_post=='post')]
-    ttest_res_sur = pg.ttest(x=x_var, y=y_var, paired=True)
+    
+    x_normal = pg.normality(data=x_var)
+    y_normal = pg.normality(data=y_var)
+    if x_normal.normal.values and y_normal.normal.values:
+        ttest_res_sur = pg.ttest(x=x_var, y=y_var, paired=True)
+    else:
+        ttest_res_sur = pg.wilcoxon(x=x_var, y=y_var)
     
     post_hoc_prepost_blink_res=pd.concat([ttest_res_mag,ttest_res_con,ttest_res_sur])
     post_hoc_prepost_blink_res['VideoType'] = ['Magic', 'Control', 'Surprise']
-    post_hoc_prepost_blink_res.to_csv(path_or_buf=os.path.join(DATA_DIR,'post_hoc_prepost_sacc_results.csv'),
+    post_hoc_prepost_blink_res.to_csv(path_or_buf=os.path.join(DATA_DIR,'post_hoc_prepost_blink_results.csv'),
                         index=False)
 ##################
 # WRITE LOG FILE #
